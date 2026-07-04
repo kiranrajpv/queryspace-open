@@ -11,17 +11,9 @@
                 <Button Content="Add Connection" Click="AddConnection_Click"/>
                 <Button Content="Extract Base Query" Click="Extract_Click"/>
                 <Button x:Name="StopExtractButton" Content="Stop Extraction" Visibility="Collapsed" Click="StopExtraction_Click"/>
-                <Button Content="Run SQL" Click="RunSql_Click"/>
                 <Button Content="Save SQL" Click="SaveSql_Click"/>
                 <Button Content="Export Results CSV" Click="ExportCsv_Click"/>
                 <Button Content="Analyze Quality" Click="AnalyzeQuality_Click"/>
-                <TextBlock Text="Use:" Foreground="#E5E7EB" VerticalAlignment="Center" Margin="18,0,4,0"/>
-                <ComboBox x:Name="UsageCombo" Width="130" MinHeight="32" SelectedIndex="0">
-                    <ComboBoxItem Content="Memory"/>
-                    <ComboBoxItem Content="Read Only"/>
-                </ComboBox>
-                <TextBlock Text="Preview rows:" Foreground="#E5E7EB" VerticalAlignment="Center" Margin="12,0,4,0"/>
-                <TextBox x:Name="PreviewRowsText" Width="96" MinWidth="96" MinHeight="32" Text="1000" VerticalContentAlignment="Center" Foreground="#E5E7EB" Background="#020617"/>
             </StackPanel>
             </ScrollViewer>
         </Border>
@@ -77,11 +69,26 @@
             <GridSplitter Grid.Column="1" Width="5" HorizontalAlignment="Stretch" Background="#1E293B"/>
             <Grid Grid.Column="2">
                 <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
                     <RowDefinition Height="2*" MinHeight="180"/>
                     <RowDefinition Height="5"/>
                     <RowDefinition Height="3*" MinHeight="220"/>
                 </Grid.RowDefinitions>
+                <Border Grid.Row="0" Background="#0F172A" BorderBrush="#243047" BorderThickness="0,0,0,1" Padding="8,6">
+                    <DockPanel LastChildFill="False">
+                        <TextBlock Text="Query" Foreground="#E5E7EB" FontWeight="SemiBold" VerticalAlignment="Center" DockPanel.Dock="Left" Margin="0,0,16,0"/>
+                        <Button Content="Run SQL" Click="RunSql_Click" DockPanel.Dock="Left" Margin="0,0,10,0"/>
+                        <TextBlock Text="Use:" Foreground="#E5E7EB" VerticalAlignment="Center" DockPanel.Dock="Left" Margin="6,0,4,0"/>
+                        <ComboBox x:Name="UsageCombo" Width="130" MinHeight="32" SelectedIndex="0" DockPanel.Dock="Left" Margin="0,0,14,0">
+                            <ComboBoxItem Content="Memory"/>
+                            <ComboBoxItem Content="Read Only"/>
+                        </ComboBox>
+                        <TextBlock Text="Preview rows:" Foreground="#E5E7EB" VerticalAlignment="Center" DockPanel.Dock="Left" Margin="0,0,4,0"/>
+                        <TextBox x:Name="PreviewRowsText" Width="96" MinWidth="96" MinHeight="32" Text="1000" VerticalContentAlignment="Center" Foreground="#E5E7EB" Background="#020617" DockPanel.Dock="Left"/>
+                    </DockPanel>
+                </Border>
                 <TextBox x:Name="SqlEditor"
+                         Grid.Row="1"
                          AcceptsReturn="True"
                          AcceptsTab="True"
                          FontFamily="Consolas"
@@ -89,8 +96,8 @@
                          VerticalScrollBarVisibility="Auto"
                          HorizontalScrollBarVisibility="Auto"
                          Text="select * from dataset_name limit 100;"/>
-                <GridSplitter Grid.Row="1" Height="5" HorizontalAlignment="Stretch" Background="#1E293B"/>
-                <DataGrid x:Name="ResultsGrid" Grid.Row="2"/>
+                <GridSplitter Grid.Row="2" Height="5" HorizontalAlignment="Stretch" Background="#1E293B"/>
+                <DataGrid x:Name="ResultsGrid" Grid.Row="3"/>
             </Grid>
         </Grid>
     </DockPanel>
