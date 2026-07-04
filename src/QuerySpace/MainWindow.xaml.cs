@@ -128,11 +128,12 @@ public partial class MainWindow : Window
         try
         {
             SetStatus("Running SQL...", true);
+            var sql = SqlEditor.Text;
             var previewRows = int.TryParse(PreviewRowsText.Text, out var value) ? value : 1000;
             var mode = UsageCombo.SelectedItem is ComboBoxItem item
                 ? item.Content?.ToString() ?? "Memory"
                 : UsageCombo.SelectedItem?.ToString() ?? "Memory";
-            var result = await Task.Run(() => _engine.ExecuteAsync(SqlEditor.Text, previewRows, mode, CancellationToken.None));
+            var result = await Task.Run(() => _engine.ExecuteAsync(sql, previewRows, mode, CancellationToken.None));
             _currentResults = result.Table;
             ResultsGrid.ItemsSource = result.Table.DefaultView;
             SetStatus($"SQL completed. Displayed {result.DisplayedRows:N0} preview rows.");
