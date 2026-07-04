@@ -53,21 +53,17 @@
             <Setter Property="Margin" Value="4"/>
             <Setter Property="Padding" Value="4"/>
             <Setter Property="MinHeight" Value="30"/>
-            <Setter Property="Background" Value="#020617"/>
+            <Setter Property="Background" Value="White"/>
             <Setter Property="Foreground" Value="#111827"/>
             <Setter Property="BorderBrush" Value="#334155"/>
-        </Style>
-        <Style TargetType="ComboBoxItem">
-            <Setter Property="Foreground" Value="#111827"/>
-            <Setter Property="Background" Value="White"/>
-            <Setter Property="Padding" Value="6,4"/>
         </Style>
         <Style TargetType="TabControl">
             <Setter Property="Background" Value="{StaticResource Panel2Brush}"/>
             <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
         </Style>
         <Style TargetType="TabItem">
-            <Setter Property="Foreground" Value="#111827"/>
+            <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+            <Setter Property="Background" Value="#172033"/>
             <Setter Property="Padding" Value="12,6"/>
         </Style>
         <Style TargetType="Grid">

@@ -79,7 +79,7 @@
                         <TextBlock Text="Query" Foreground="#E5E7EB" FontWeight="SemiBold" VerticalAlignment="Center" DockPanel.Dock="Left" Margin="0,0,16,0"/>
                         <Button Content="Run SQL" Click="RunSql_Click" DockPanel.Dock="Left" Margin="0,0,10,0"/>
                         <TextBlock Text="Use:" Foreground="#E5E7EB" VerticalAlignment="Center" DockPanel.Dock="Left" Margin="6,0,4,0"/>
-                        <ComboBox x:Name="UsageCombo" Width="130" MinHeight="32" SelectedIndex="0" DockPanel.Dock="Left" Margin="0,0,14,0">
+                        <ComboBox x:Name="UsageCombo" Width="130" MinHeight="32" SelectedIndex="0" DockPanel.Dock="Left" Margin="0,0,14,0" Foreground="#111827" Background="White">
                             <ComboBoxItem Content="Memory"/>
                             <ComboBoxItem Content="Read Only"/>
                         </ComboBox>
