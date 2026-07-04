@@ -252,7 +252,7 @@ public sealed class DataEngine
             token.ThrowIfCancellationRequested();
             using var connection = NewOpenDuckConnection();
             using var command = connection.CreateCommand();
-            command.CommandText = $"copy (select * from read_csv_auto('{EscapePath(csvPath)}', nullstr ['#N/A','#VALUE!','#REF!','#DIV/0!','NULL','null','N/A',''])) to '{EscapePath(parquetPath)}' (format parquet, compression zstd)";
+            command.CommandText = $"copy (select * from read_csv_auto('{EscapePath(csvPath)}', nullstr=['#N/A','#VALUE!','#REF!','#DIV/0!','NULL','null','N/A',''])) to '{EscapePath(parquetPath)}' (format parquet, compression zstd)";
             command.ExecuteNonQuery();
         }, token);
     }
