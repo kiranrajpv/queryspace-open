@@ -42,25 +42,140 @@ src\QuerySpace\Assets  QuerySpace icon
 installer\             Inno Setup installer script
 ```
 
-## Third-party libraries
+## Technology, tools, libraries, and license inventory
 
-| Library / Technology | Used for | License / note |
-|---|---|---|
-| .NET 9 / WPF | Native Windows desktop application | MIT, .NET Foundation / Microsoft |
-| DuckDB.NET.Data.Full | SQL over Parquet, CSV-to-Parquet conversion, result execution, and bundled native DuckDB runtime | MIT |
-| DuckDB native engine | Embedded analytical SQL engine | MIT |
-| CsvHelper | CSV handling support | MS-PL / Apache-2.0 dual license, depending package version |
-| ExcelDataReader | Read `.xls` and `.xlsx` files | MIT |
-| ExcelDataReader.DataSet | DataSet helpers for ExcelDataReader | MIT |
-| Microsoft.Data.SqlClient | Direct SQL Server connectivity | MIT |
-| System.Data.Odbc | ODBC DSN connectivity | MIT / .NET runtime license |
-| Snowflake.Data | Snowflake database connectivity | Apache-2.0 |
-| Microsoft.ML | Future/advanced local ML quality checks; current implementation uses CPU-only statistical outlier detection | MIT |
-| Parquet.Net | Direct database extraction into Parquet row groups | MIT |
-| System.Security.Cryptography.ProtectedData | Windows DPAPI secret encryption | MIT / .NET runtime license |
-| Inno Setup 6 | Windows setup executable | Inno Setup license, source available |
+This section documents the technologies used by QuerySpace C# Edition, why they are used, and the license information available from project files/NuGet package metadata on this build machine.
 
-Before distributing outside your company, generate a full third-party notice/SBOM from the resolved NuGet dependency tree because transitive dependencies are not fully listed above.
+Important: this table is an engineering inventory, not legal advice. Before broad internal rollout or any external/public release, generate a formal third-party notice/SBOM from the exact release build output and have company legal/compliance review it.
+
+### Project/runtime/build technologies
+
+| Technology / tool | Version / source | License / owner | Why QuerySpace uses it |
+|---|---:|---|---|
+| C# | .NET SDK toolchain | Microsoft / .NET Foundation | Main implementation language for the Windows desktop rebuild. |
+| .NET | 9.0 target, `net9.0-windows` | MIT, Microsoft / .NET Foundation | Application runtime, base class libraries, cryptography APIs, WPF support, packaging/publish toolchain. |
+| WPF | Included with .NET desktop workload | MIT, Microsoft / .NET Foundation | Native Windows UI: windows, dialogs, tree views, editor text boxes, result grid, status bar, progress bar. |
+| Windows DWM API | Windows OS API | Microsoft Windows platform API | Colors the native Windows title bar Parker blue with white title text. |
+| Windows DPAPI | Windows OS API via `ProtectedData` | Microsoft Windows platform API | Encrypts stored connection passwords/tokens for the current Windows user. |
+| Windows ODBC Administrator | Windows OS tool | Microsoft Windows platform component | Users create/manage 64-bit ODBC DSNs for SQL Server, SAP HANA, and other ODBC sources. |
+| Git | Developer tool | GPL-2.0 | Source control for the repository. |
+| NuGet | .NET package manager | Apache-2.0 / Microsoft ecosystem tooling | Restores third-party .NET packages. |
+| Inno Setup 6 | Installer tool | Inno Setup License; source available | Builds the Windows installer executable and desktop/start-menu shortcuts. |
+| QuerySpace icon asset | `src\QuerySpace\Assets\QuerySpace.ico` | Project asset | Application/window/installer icon. Keep provenance/license with project assets if replaced. |
+
+### Direct NuGet dependencies
+
+These are referenced directly in [QuerySpace.csproj](src/QuerySpace/QuerySpace.csproj).
+
+| Package | Version | License from NuGet metadata | Why QuerySpace uses it |
+|---|---:|---|---|
+| `CommunityToolkit.Mvvm` | 8.4.2 | MIT | MVVM utility package available for future UI binding/view-model work. Current UI is mostly code-behind, so this can be removed later if it remains unused. |
+| `CsvHelper` | 33.1.0 | MS-PL OR Apache-2.0 | CSV handling support if/when manual CSV parsing/export logic is expanded. Current import/export path primarily uses DuckDB. |
+| `DuckDB.NET.Data.Full` | 1.5.3 | MIT | Embedded DuckDB ADO.NET provider plus bundled native DuckDB runtime. Used for local SQL over Parquet, CSV-to-Parquet import, result previews, and CSV export. |
+| `ExcelDataReader` | 3.9.0 | MIT | Reads `.xls` and `.xlsx` files before converting them to workspace Parquet datasets. |
+| `ExcelDataReader.DataSet` | 3.9.0 | MIT | ExcelDataReader helper package available for dataset-style Excel handling. Current import uses the streaming reader API. |
+| `Microsoft.Data.SqlClient` | 7.0.2 | MIT | Direct Microsoft SQL Server connection support without requiring ODBC DSN. |
+| `Microsoft.ML` | 5.0.0 | MIT | Reserved for local CPU-only data-quality ML checks. Current data-quality implementation is statistical/rule based. |
+| `Parquet.Net` | 6.0.3 | MIT | Writes database extraction results directly into Parquet row groups with Zstandard compression. |
+| `Snowflake.Data` | 5.7.0 | Apache-2.0 | Direct Snowflake connection/extraction support using user token/auth configuration. |
+| `System.Data.Odbc` | 9.0.7 | .NET runtime package; license metadata not declared in local `.nuspec` | ODBC DSN connectivity for SQL Server, SAP HANA, and other user-configured ODBC data sources. |
+| `System.Security.Cryptography.ProtectedData` | 9.0.13 | MIT | Provides Windows DPAPI integration for encrypted secret storage. |
+
+### Transitive NuGet dependencies
+
+These are pulled by the direct dependencies above. Versions are from `dotnet list package --include-transitive`.
+
+| Package | Version | License from NuGet metadata | Why it is present |
+|---|---:|---|---|
+| `Apache.Arrow` | 14.0.2 | `LICENSE.txt` in package; Apache Arrow project license is Apache-2.0 | Transitive dependency used by data/connector packages for columnar data handling. |
+| `AWSSDK.Core` | 4.0.3.28 | Apache-2.0 | Transitive dependency of Snowflake/cloud storage support. |
+| `AWSSDK.S3` | 4.0.20.4 | Apache-2.0 | Transitive dependency of Snowflake/cloud storage support. |
+| `Azure.Core` | 1.25.0 | MIT | Transitive Azure SDK base dependency. |
+| `Azure.Storage.Blobs` | 12.13.0 | MIT | Transitive dependency for connector/cloud storage scenarios. |
+| `Azure.Storage.Common` | 12.12.0 | MIT | Transitive Azure Storage support. |
+| `BouncyCastle.Cryptography` | 2.6.2 | License metadata not declared in local `.nuspec`; verify package license before redistribution | Transitive cryptography dependency used by connector/security packages. |
+| `CommunityToolkit.HighPerformance` | 8.4.2 | MIT | Transitive dependency of CommunityToolkit packages. |
+| `DuckDB.NET.Bindings.Full` | 1.5.3 | License metadata not declared in local `.nuspec`; DuckDB.NET project is MIT | Native DuckDB bindings bundled by `DuckDB.NET.Data.Full`. |
+| `Google.Api.Gax` | 4.12.1 | BSD-3-Clause | Transitive Google API support used by cloud connector packages. |
+| `Google.Api.Gax.Rest` | 4.12.1 | BSD-3-Clause | Transitive REST support for Google API packages. |
+| `Google.Apis` | 1.72.0 | Apache-2.0 | Transitive Google API client dependency. |
+| `Google.Apis.Auth` | 1.72.0 | Apache-2.0 | Transitive Google auth dependency. |
+| `Google.Apis.Core` | 1.72.0 | Apache-2.0 | Transitive Google API core dependency. |
+| `Google.Apis.Storage.v1` | 1.71.0.3920 | Apache-2.0 | Transitive Google Cloud Storage API dependency. |
+| `Google.Cloud.Storage.V1` | 4.14.0 | Apache-2.0 | Transitive Google Cloud Storage dependency. |
+| `K4os.Compression.LZ4` | 1.3.8 | License URL in package metadata; verify before redistribution | LZ4 compression support used transitively by data/Parquet-related packages. |
+| `Microsoft.Bcl.AsyncInterfaces` | 9.0.4 | MIT | .NET async interface support for packages targeting multiple frameworks. |
+| `Microsoft.Bcl.Cryptography` | 9.0.13 | MIT | Cryptography support library used transitively by Microsoft packages. |
+| `Microsoft.Data.SqlClient.Extensions.Abstractions` | 7.0.2 | MIT | Transitive SQL Client extension abstractions. |
+| `Microsoft.Data.SqlClient.Internal.Logging` | 7.0.2 | License metadata not declared in local `.nuspec`; verify before redistribution | Transitive SQL Client logging package. |
+| `Microsoft.Data.SqlClient.SNI.runtime` | 6.0.2 | License metadata not declared in local `.nuspec`; verify before redistribution | Native SQL Server network interface runtime used by SqlClient. |
+| `Microsoft.Extensions.Caching.Abstractions` | 9.0.13 | MIT | Transitive Microsoft.Extensions support. |
+| `Microsoft.Extensions.Caching.Memory` | 9.0.13 | MIT | Transitive in-memory cache support. |
+| `Microsoft.Extensions.DependencyInjection` | 9.0.5 | MIT | Transitive dependency injection support. |
+| `Microsoft.Extensions.DependencyInjection.Abstractions` | 9.0.13 | MIT | Transitive dependency injection abstractions. |
+| `Microsoft.Extensions.Logging` | 9.0.5 | MIT | Transitive logging support. |
+| `Microsoft.Extensions.Logging.Abstractions` | 9.0.13 | MIT | Transitive logging abstractions. |
+| `Microsoft.Extensions.Options` | 9.0.13 | MIT | Transitive options/configuration support. |
+| `Microsoft.Extensions.Primitives` | 9.0.13 | MIT | Transitive Microsoft.Extensions primitives. |
+| `Microsoft.IdentityModel.Abstractions` | 8.16.0 | License metadata not declared in local `.nuspec`; verify before redistribution | Transitive identity/token abstraction support. |
+| `Microsoft.IdentityModel.JsonWebTokens` | 8.16.0 | MIT | Transitive JWT support. |
+| `Microsoft.IdentityModel.Logging` | 8.16.0 | MIT | Transitive IdentityModel logging support. |
+| `Microsoft.IdentityModel.Protocols` | 8.16.0 | MIT | Transitive identity protocol support. |
+| `Microsoft.IdentityModel.Protocols.OpenIdConnect` | 8.16.0 | MIT | Transitive OpenID Connect protocol support. |
+| `Microsoft.IdentityModel.Tokens` | 8.16.0 | MIT | Transitive token validation/handling support. |
+| `Microsoft.IO.RecyclableMemoryStream` | 3.0.1 | MIT | Transitive memory-stream optimization dependency. |
+| `Microsoft.ML.CpuMath` | 5.0.0 | MIT | CPU math runtime for ML.NET. |
+| `Microsoft.ML.DataView` | 5.0.0 | MIT | ML.NET data-view abstractions. |
+| `Microsoft.SqlServer.Server` | 1.0.0 | License metadata not declared in local `.nuspec`; verify before redistribution | Transitive SQL Server type/support dependency. |
+| `Newtonsoft.Json` | 13.0.4 | MIT | Transitive JSON serialization dependency used by connector packages. |
+| `Snappier` | 1.3.1 | BSD-3-Clause | Snappy compression support used by Parquet/Arrow-style data packages. |
+| `System.Buffers` | 4.6.1 | License metadata not declared in local `.nuspec`; .NET library packages are generally MIT but verify before redistribution | Transitive buffer primitives. |
+| `System.CodeDom` | 9.0.4 | License metadata not declared in local `.nuspec`; verify before redistribution | Transitive CodeDOM support. |
+| `System.Collections.Immutable` | 9.0.4 | MIT | Immutable collection primitives used transitively. |
+| `System.Configuration.ConfigurationManager` | 9.0.13 | MIT | Configuration support required by some database/connector packages. |
+| `System.Diagnostics.DiagnosticSource` | 6.0.2 | MIT | Diagnostic/activity tracing support. |
+| `System.Diagnostics.EventLog` | 9.0.13 | MIT | Windows Event Log support used transitively by Microsoft packages. |
+| `System.IdentityModel.Tokens.Jwt` | 8.16.0 | MIT | JWT support used by identity/auth connector dependencies. |
+| `System.IO.Hashing` | 6.0.0 | MIT | Hashing primitives used transitively. |
+| `System.Management` | 7.0.2 | MIT | Windows management APIs used transitively by SQL/client packages. |
+| `System.Memory` | 4.6.3 | MIT | Memory primitives used by many packages. |
+| `System.Memory.Data` | 1.0.2 | MIT | Binary/memory data support used transitively. |
+| `System.Numerics.Tensors` | 9.0.4 | MIT | Tensor primitives used by ML.NET. |
+| `System.Numerics.Vectors` | 4.5.0 | License URL in package metadata; .NET library package, verify before redistribution | SIMD vector primitives used by math/ML packages. |
+| `System.Reflection.Emit.Lightweight` | 4.7.0 | MIT | Lightweight dynamic-code support used transitively. |
+| `System.Runtime.CompilerServices.Unsafe` | 6.1.2 | License metadata not declared in local `.nuspec`; verify before redistribution | Low-level runtime helper package used by performance-sensitive dependencies. |
+| `System.Security.Cryptography.Pkcs` | 9.0.13 | MIT | PKCS cryptography support used transitively. |
+| `System.Text.Encodings.Web` | 4.7.2 | MIT | Web-safe text encoding support used by JSON/auth packages. |
+| `System.Text.Json` | 4.7.2 | MIT | JSON serialization support used transitively. |
+| `System.Threading.Channels` | 9.0.4 | MIT | Async channel support used by connector/runtime packages. |
+| `System.Threading.Tasks.Extensions` | 4.5.4 | License URL in package metadata; .NET library package, verify before redistribution | Async task compatibility helpers. |
+| `TimeZoneConverter` | 7.2.0 | MIT | Time zone conversion support used by Snowflake connector. |
+| `Tomlyn.Signed` | 0.17.0 | License metadata not declared in local `.nuspec`; verify before redistribution | TOML parsing support pulled transitively. |
+| `ZstdSharp.Port` | 0.8.8 | MIT | Zstandard compression support used by Parquet writing. |
+
+### External systems/drivers not bundled by QuerySpace
+
+| External component | Bundled with QuerySpace? | License / owner | Why a user may need it |
+|---|---:|---|---|
+| Microsoft SQL Server / SQL Server Express | No | Microsoft SQL Server license terms | Optional database source for base-query extraction. QuerySpace connects through `Microsoft.Data.SqlClient`. |
+| SQL Server TLS certificate / company root certificate | No | Company/Microsoft certificate infrastructure | Required for trusted encrypted SQL Server connections without `Trust server certificate`. |
+| SAP HANA Client 64-bit / HDBODBC driver | No | SAP license terms; obtain through company SAP portal/SAP Software Download Center | Required when users connect to SAP HANA through a 64-bit ODBC DSN. QuerySpace does not redistribute SAP HANA drivers. |
+| 64-bit ODBC DSNs | No | Configured by user/admin on Windows | Lets QuerySpace connect to HANA, SQL Server, and other ODBC databases through Windows ODBC Administrator. |
+| Snowflake account/token | No | Snowflake terms | Optional Snowflake base-query extraction through `Snowflake.Data`. |
+
+### Dependency/security maintenance commands
+
+Run these before releasing a new installer:
+
+```powershell
+cd "C:\Users\kiran\source\queryspace-csharp"
+dotnet restore .\QuerySpace.sln
+dotnet list .\src\QuerySpace\QuerySpace.csproj package --include-transitive
+dotnet list .\src\QuerySpace\QuerySpace.csproj package --vulnerable --include-transitive
+dotnet list .\src\QuerySpace\QuerySpace.csproj package --outdated
+```
+
+At the time this README section was updated, `dotnet list package --vulnerable --include-transitive` reported no known vulnerable packages from the configured NuGet sources.
 
 ## Build from source
 
