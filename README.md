@@ -48,6 +48,8 @@ This section documents the technologies used by QuerySpace C# Edition, why they 
 
 Important: this table is an engineering inventory, not legal advice. Before broad internal rollout or any external/public release, generate a formal third-party notice/SBOM from the exact release build output and have company legal/compliance review it.
 
+Package-provided license and notice text discovered in the local NuGet package cache is included in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md). Regenerate it with [scripts/generate-third-party-notices.ps1](scripts/generate-third-party-notices.ps1) whenever package versions change.
+
 ### Project/runtime/build technologies
 
 | Technology / tool | Version / source | License / owner | Why QuerySpace uses it |
@@ -173,6 +175,7 @@ dotnet restore .\QuerySpace.sln
 dotnet list .\src\QuerySpace\QuerySpace.csproj package --include-transitive
 dotnet list .\src\QuerySpace\QuerySpace.csproj package --vulnerable --include-transitive
 dotnet list .\src\QuerySpace\QuerySpace.csproj package --outdated
+.\scripts\generate-third-party-notices.ps1
 ```
 
 At the time this README section was updated, `dotnet list package --vulnerable --include-transitive` reported no known vulnerable packages from the configured NuGet sources.
