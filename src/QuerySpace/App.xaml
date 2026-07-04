@@ -3,5 +3,39 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              StartupUri="MainWindow.xaml">
     <Application.Resources>
+        <Thickness x:Key="ControlGap">4</Thickness>
+        <Style x:Key="ToolbarButtonStyle" TargetType="Button">
+            <Setter Property="Margin" Value="4"/>
+            <Setter Property="Padding" Value="12,6"/>
+            <Setter Property="MinHeight" Value="32"/>
+            <Setter Property="MinWidth" Value="96"/>
+        </Style>
+        <Style x:Key="PrimaryToolbarButtonStyle" TargetType="Button" BasedOn="{StaticResource ToolbarButtonStyle}">
+            <Setter Property="FontWeight" Value="SemiBold"/>
+        </Style>
+        <Style x:Key="FormTextBoxStyle" TargetType="TextBox">
+            <Setter Property="Margin" Value="0,3,0,9"/>
+            <Setter Property="MinHeight" Value="28"/>
+            <Setter Property="Padding" Value="4,2"/>
+        </Style>
+        <Style x:Key="FormPasswordBoxStyle" TargetType="PasswordBox">
+            <Setter Property="Margin" Value="0,3,0,9"/>
+            <Setter Property="MinHeight" Value="28"/>
+            <Setter Property="Padding" Value="4,2"/>
+        </Style>
+        <Style x:Key="FormComboBoxStyle" TargetType="ComboBox">
+            <Setter Property="Margin" Value="0,3,0,9"/>
+            <Setter Property="MinHeight" Value="28"/>
+        </Style>
+        <Style x:Key="FormLabelStyle" TargetType="TextBlock">
+            <Setter Property="Margin" Value="0,6,12,9"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+        <Style x:Key="DialogActionButtonStyle" TargetType="Button">
+            <Setter Property="Margin" Value="4,0,0,0"/>
+            <Setter Property="Padding" Value="12,6"/>
+            <Setter Property="MinWidth" Value="88"/>
+            <Setter Property="MinHeight" Value="32"/>
+        </Style>
     </Application.Resources>
 </Application>

@@ -3,17 +3,18 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="QuerySpace" Height="820" Width="1280" MinHeight="680" MinWidth="980">
     <DockPanel>
-        <Border DockPanel.Dock="Top" Padding="8">
+        <Border DockPanel.Dock="Top" Padding="10,8">
             <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
-            <StackPanel Orientation="Horizontal">
-                <Button Content="Set Workspace" Click="SetWorkspace_Click"/>
-                <Button Content="Import CSV/Excel/Parquet" Click="Import_Click"/>
-                <Button Content="Add Connection" Click="AddConnection_Click"/>
-                <Button Content="Extract Base Query" Click="Extract_Click"/>
-                <Button x:Name="StopExtractButton" Content="Stop Extraction" Visibility="Collapsed" Click="StopExtraction_Click"/>
-                <Button Content="Save SQL" Click="SaveSql_Click"/>
-                <Button Content="Export Results CSV" Click="ExportCsv_Click"/>
-                <Button Content="Analyze Quality" Click="AnalyzeQuality_Click"/>
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                <Button Content="Set Workspace" Click="SetWorkspace_Click" Style="{StaticResource ToolbarButtonStyle}"/>
+                <Button Content="Import CSV/Excel/Parquet" Click="Import_Click" Style="{StaticResource ToolbarButtonStyle}" MinWidth="180"/>
+                <Button Content="Add Connection" Click="AddConnection_Click" Style="{StaticResource ToolbarButtonStyle}" MinWidth="130"/>
+                <Button Content="Extract Base Query" Click="Extract_Click" Style="{StaticResource ToolbarButtonStyle}" MinWidth="150"/>
+                <Button x:Name="StopExtractButton" Content="Stop Extraction" Visibility="Collapsed" Click="StopExtraction_Click" Style="{StaticResource ToolbarButtonStyle}" MinWidth="130"/>
+                <Separator Width="12" Opacity="0"/>
+                <Button Content="Save SQL" Click="SaveSql_Click" Style="{StaticResource ToolbarButtonStyle}"/>
+                <Button Content="Export Results CSV" Click="ExportCsv_Click" Style="{StaticResource ToolbarButtonStyle}" MinWidth="150"/>
+                <Button Content="Analyze Quality" Click="AnalyzeQuality_Click" Style="{StaticResource ToolbarButtonStyle}" MinWidth="130"/>
             </StackPanel>
             </ScrollViewer>
         </Border>
@@ -74,17 +75,17 @@
                     <RowDefinition Height="5"/>
                     <RowDefinition Height="3*" MinHeight="220"/>
                 </Grid.RowDefinitions>
-                <Border Grid.Row="0" Padding="8,6">
+                <Border Grid.Row="0" Padding="10,8">
                     <DockPanel LastChildFill="False">
-                        <TextBlock Text="Query" FontWeight="SemiBold" VerticalAlignment="Center" DockPanel.Dock="Left" Margin="0,0,16,0"/>
-                        <Button Content="Run SQL" Click="RunSql_Click" DockPanel.Dock="Left" Margin="0,0,10,0"/>
-                        <TextBlock Text="Use:" VerticalAlignment="Center" DockPanel.Dock="Left" Margin="6,0,4,0"/>
-                        <ComboBox x:Name="UsageCombo" Width="130" MinHeight="32" SelectedIndex="0" DockPanel.Dock="Left" Margin="0,0,14,0">
+                        <TextBlock Text="Query" FontWeight="SemiBold" VerticalAlignment="Center" DockPanel.Dock="Left" Margin="0,0,18,0"/>
+                        <Button Content="Run SQL" Click="RunSql_Click" DockPanel.Dock="Left" Style="{StaticResource PrimaryToolbarButtonStyle}" Margin="0,0,14,0"/>
+                        <TextBlock Text="Use:" VerticalAlignment="Center" DockPanel.Dock="Left" Margin="0,0,6,0"/>
+                        <ComboBox x:Name="UsageCombo" Width="130" MinHeight="32" SelectedIndex="0" DockPanel.Dock="Left" Margin="0,0,18,0">
                             <ComboBoxItem>Memory</ComboBoxItem>
                             <ComboBoxItem>Read Only</ComboBoxItem>
                         </ComboBox>
-                        <TextBlock Text="Preview rows:" VerticalAlignment="Center" DockPanel.Dock="Left" Margin="0,0,4,0"/>
-                        <TextBox x:Name="PreviewRowsText" Width="96" MinWidth="96" MinHeight="32" Text="1000" VerticalContentAlignment="Center" DockPanel.Dock="Left"/>
+                        <TextBlock Text="Preview rows:" VerticalAlignment="Center" DockPanel.Dock="Left" Margin="0,0,6,0"/>
+                        <TextBox x:Name="PreviewRowsText" Width="96" MinWidth="96" MinHeight="32" Text="1000" VerticalContentAlignment="Center" DockPanel.Dock="Left" Padding="4,2"/>
                     </DockPanel>
                 </Border>
                 <TextBox x:Name="SqlEditor"

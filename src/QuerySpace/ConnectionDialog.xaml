@@ -2,11 +2,11 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Database connection" Height="620" Width="720" WindowStartupLocation="CenterOwner">
-    <DockPanel Margin="12">
+    <DockPanel Margin="16">
         <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
-            <Button Content="Test connection" Click="Test_Click"/>
-            <Button Content="Save" Click="Save_Click"/>
-            <Button Content="Cancel" Click="Cancel_Click"/>
+            <Button Content="Test connection" Click="Test_Click" Style="{StaticResource DialogActionButtonStyle}" MinWidth="120"/>
+            <Button Content="Save" Click="Save_Click" Style="{StaticResource DialogActionButtonStyle}"/>
+            <Button Content="Cancel" Click="Cancel_Click" Style="{StaticResource DialogActionButtonStyle}"/>
         </StackPanel>
         <TabControl x:Name="Tabs">
             <TabItem Header="ODBC DSN">
@@ -15,12 +15,12 @@
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
-                    <TextBlock Text="Connection name" Grid.Row="0"/><TextBox x:Name="OdbcName" Grid.Row="0" Grid.Column="1"/>
-                    <TextBlock Text="DSN name" Grid.Row="1"/><TextBox x:Name="OdbcDsn" Grid.Row="1" Grid.Column="1"/>
-                    <TextBlock Text="Database" Grid.Row="2"/><TextBox x:Name="OdbcDatabase" Grid.Row="2" Grid.Column="1"/>
-                    <TextBlock Text="User" Grid.Row="3"/><TextBox x:Name="OdbcUser" Grid.Row="3" Grid.Column="1"/>
-                    <TextBlock Text="Password/token" Grid.Row="4"/><PasswordBox x:Name="OdbcSecret" Grid.Row="4" Grid.Column="1"/>
-                    <CheckBox x:Name="OdbcTrusted" Content="Use integrated/trusted authentication" Grid.Row="5" Grid.Column="1"/>
+                    <TextBlock Text="Connection name" Grid.Row="0" Style="{StaticResource FormLabelStyle}"/><TextBox x:Name="OdbcName" Grid.Row="0" Grid.Column="1" Style="{StaticResource FormTextBoxStyle}"/>
+                    <TextBlock Text="DSN name" Grid.Row="1" Style="{StaticResource FormLabelStyle}"/><TextBox x:Name="OdbcDsn" Grid.Row="1" Grid.Column="1" Style="{StaticResource FormTextBoxStyle}"/>
+                    <TextBlock Text="Database" Grid.Row="2" Style="{StaticResource FormLabelStyle}"/><TextBox x:Name="OdbcDatabase" Grid.Row="2" Grid.Column="1" Style="{StaticResource FormTextBoxStyle}"/>
+                    <TextBlock Text="User" Grid.Row="3" Style="{StaticResource FormLabelStyle}"/><TextBox x:Name="OdbcUser" Grid.Row="3" Grid.Column="1" Style="{StaticResource FormTextBoxStyle}"/>
+                    <TextBlock Text="Password/token" Grid.Row="4" Style="{StaticResource FormLabelStyle}"/><PasswordBox x:Name="OdbcSecret" Grid.Row="4" Grid.Column="1" Style="{StaticResource FormPasswordBoxStyle}"/>
+                    <CheckBox x:Name="OdbcTrusted" Content="Use integrated/trusted authentication" Grid.Row="5" Grid.Column="1" Margin="0,4,0,8"/>
                 </Grid>
             </TabItem>
             <TabItem Header="SQL Server">
@@ -29,15 +29,15 @@
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
-                    <TextBlock Text="Connection name" Grid.Row="0"/><TextBox x:Name="SqlName" Grid.Row="0" Grid.Column="1"/>
-                    <TextBlock Text="Server" Grid.Row="1"/><TextBox x:Name="SqlServer" Grid.Row="1" Grid.Column="1"/>
-                    <TextBlock Text="Database" Grid.Row="2"/><TextBox x:Name="SqlDatabase" Grid.Row="2" Grid.Column="1"/>
-                    <TextBlock Text="User" Grid.Row="3"/><TextBox x:Name="SqlUser" Grid.Row="3" Grid.Column="1"/>
-                    <TextBlock Text="Password" Grid.Row="4"/><PasswordBox x:Name="SqlSecret" Grid.Row="4" Grid.Column="1"/>
-                    <CheckBox x:Name="SqlTrusted" Content="Windows integrated authentication" Grid.Row="5" Grid.Column="1"/>
+                    <TextBlock Text="Connection name" Grid.Row="0" Style="{StaticResource FormLabelStyle}"/><TextBox x:Name="SqlName" Grid.Row="0" Grid.Column="1" Style="{StaticResource FormTextBoxStyle}"/>
+                    <TextBlock Text="Server" Grid.Row="1" Style="{StaticResource FormLabelStyle}"/><TextBox x:Name="SqlServer" Grid.Row="1" Grid.Column="1" Style="{StaticResource FormTextBoxStyle}"/>
+                    <TextBlock Text="Database" Grid.Row="2" Style="{StaticResource FormLabelStyle}"/><TextBox x:Name="SqlDatabase" Grid.Row="2" Grid.Column="1" Style="{StaticResource FormTextBoxStyle}"/>
+                    <TextBlock Text="User" Grid.Row="3" Style="{StaticResource FormLabelStyle}"/><TextBox x:Name="SqlUser" Grid.Row="3" Grid.Column="1" Style="{StaticResource FormTextBoxStyle}"/>
+                    <TextBlock Text="Password" Grid.Row="4" Style="{StaticResource FormLabelStyle}"/><PasswordBox x:Name="SqlSecret" Grid.Row="4" Grid.Column="1" Style="{StaticResource FormPasswordBoxStyle}"/>
+                    <CheckBox x:Name="SqlTrusted" Content="Windows integrated authentication" Grid.Row="5" Grid.Column="1" Margin="0,4,0,8"/>
                     <StackPanel Grid.Row="6" Grid.Column="1">
-                        <CheckBox x:Name="SqlEncrypt" Content="Require SSL/TLS encryption" IsChecked="True"/>
-                        <CheckBox x:Name="SqlTrustCert" Content="Trust server certificate"/>
+                        <CheckBox x:Name="SqlEncrypt" Content="Require SSL/TLS encryption" IsChecked="True" Margin="0,4,0,4"/>
+                        <CheckBox x:Name="SqlTrustCert" Content="Trust server certificate" Margin="0,4,0,4"/>
                     </StackPanel>
                 </Grid>
             </TabItem>
@@ -47,14 +47,14 @@
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
-                    <TextBlock Text="Connection name" Grid.Row="0"/><TextBox x:Name="SnowName" Grid.Row="0" Grid.Column="1"/>
-                    <TextBlock Text="Account" Grid.Row="1"/><TextBox x:Name="SnowAccount" Grid.Row="1" Grid.Column="1"/>
-                    <TextBlock Text="User" Grid.Row="2"/><TextBox x:Name="SnowUser" Grid.Row="2" Grid.Column="1"/>
-                    <TextBlock Text="Token" Grid.Row="3"/><PasswordBox x:Name="SnowToken" Grid.Row="3" Grid.Column="1"/>
-                    <TextBlock Text="Warehouse" Grid.Row="4"/><TextBox x:Name="SnowWarehouse" Grid.Row="4" Grid.Column="1"/>
-                    <TextBlock Text="Database" Grid.Row="5"/><TextBox x:Name="SnowDatabase" Grid.Row="5" Grid.Column="1"/>
-                    <TextBlock Text="Schema" Grid.Row="6"/><TextBox x:Name="SnowSchema" Grid.Row="6" Grid.Column="1"/>
-                    <TextBlock Text="Role" Grid.Row="7"/><TextBox x:Name="SnowRole" Grid.Row="7" Grid.Column="1"/>
+                    <TextBlock Text="Connection name" Grid.Row="0" Style="{StaticResource FormLabelStyle}"/><TextBox x:Name="SnowName" Grid.Row="0" Grid.Column="1" Style="{StaticResource FormTextBoxStyle}"/>
+                    <TextBlock Text="Account" Grid.Row="1" Style="{StaticResource FormLabelStyle}"/><TextBox x:Name="SnowAccount" Grid.Row="1" Grid.Column="1" Style="{StaticResource FormTextBoxStyle}"/>
+                    <TextBlock Text="User" Grid.Row="2" Style="{StaticResource FormLabelStyle}"/><TextBox x:Name="SnowUser" Grid.Row="2" Grid.Column="1" Style="{StaticResource FormTextBoxStyle}"/>
+                    <TextBlock Text="Token" Grid.Row="3" Style="{StaticResource FormLabelStyle}"/><PasswordBox x:Name="SnowToken" Grid.Row="3" Grid.Column="1" Style="{StaticResource FormPasswordBoxStyle}"/>
+                    <TextBlock Text="Warehouse" Grid.Row="4" Style="{StaticResource FormLabelStyle}"/><TextBox x:Name="SnowWarehouse" Grid.Row="4" Grid.Column="1" Style="{StaticResource FormTextBoxStyle}"/>
+                    <TextBlock Text="Database" Grid.Row="5" Style="{StaticResource FormLabelStyle}"/><TextBox x:Name="SnowDatabase" Grid.Row="5" Grid.Column="1" Style="{StaticResource FormTextBoxStyle}"/>
+                    <TextBlock Text="Schema" Grid.Row="6" Style="{StaticResource FormLabelStyle}"/><TextBox x:Name="SnowSchema" Grid.Row="6" Grid.Column="1" Style="{StaticResource FormTextBoxStyle}"/>
+                    <TextBlock Text="Role" Grid.Row="7" Style="{StaticResource FormLabelStyle}"/><TextBox x:Name="SnowRole" Grid.Row="7" Grid.Column="1" Style="{StaticResource FormTextBoxStyle}"/>
                 </Grid>
             </TabItem>
         </TabControl>
