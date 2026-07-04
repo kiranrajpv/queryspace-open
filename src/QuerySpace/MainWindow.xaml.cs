@@ -69,12 +69,13 @@ public partial class MainWindow : Window
             MessageBox.Show(this, "An extraction is already running. Stop it before starting another.", "Extract Base Query");
             return;
         }
-        if (_workspace.State.Connections.Count == 0)
+        var connections = _workspace.SnapshotConnections();
+        if (connections.Count == 0)
         {
             MessageBox.Show(this, "Add a database connection first.", "Extract Base Query");
             return;
         }
-        var dialog = new ExtractDialog(_workspace.State.Connections, SqlEditor.Text) { Owner = this };
+        var dialog = new ExtractDialog(connections, SqlEditor.Text) { Owner = this };
         if (dialog.ShowDialog() != true) return;
         await RunExtractionAsync(dialog.SelectedConnection, dialog.DatasetName, dialog.Sql, dialog.BatchSize, dialog.ExpectedRows);
     }
@@ -322,9 +323,10 @@ public partial class MainWindow : Window
         }
         else if (value is ExtractQueryInfo query && File.Exists(query.SqlPath))
         {
-            var savedConnection = _workspace.State.Connections.FirstOrDefault(c => c.Id == query.ConnectionId);
+            var connections = _workspace.SnapshotConnections();
+            var savedConnection = connections.FirstOrDefault(c => c.Id == query.ConnectionId);
             if (savedConnection == null) return;
-            var dialog = new ExtractDialog(_workspace.State.Connections, File.ReadAllText(query.SqlPath), query.Name, savedConnection.Id) { Owner = this };
+            var dialog = new ExtractDialog(connections, File.ReadAllText(query.SqlPath), query.Name, savedConnection.Id) { Owner = this };
             if (dialog.ShowDialog() == true)
             {
                 if (_extractCts != null)
@@ -354,7 +356,10 @@ public partial class MainWindow : Window
     {
         WorkspaceText.Text = $"Workspace: {_workspace.Root}";
         DatasetsTree.Items.Clear();
-        foreach (var dataset in _workspace.State.Datasets.OrderBy(d => d.Name))
+        var datasets = _workspace.SnapshotDatasets();
+        var connections = _workspace.SnapshotConnections();
+        var extractQueries = _workspace.SnapshotExtractQueries();
+        foreach (var dataset in datasets.OrderBy(d => d.Name))
         {
             DatasetsTree.Items.Add(new TreeViewItem { Header = $"{dataset.Name} ({dataset.RowCount:N0} rows)", Tag = dataset });
         }
@@ -364,10 +369,10 @@ public partial class MainWindow : Window
             ScriptsTree.Items.Add(new TreeViewItem { Header = Path.GetFileName(path), Tag = path });
         }
         ConnectionsTree.Items.Clear();
-        foreach (var connection in _workspace.State.Connections.OrderBy(c => c.Name))
+        foreach (var connection in connections.OrderBy(c => c.Name))
         {
             var item = new TreeViewItem { Header = $"{connection.Name} [{connection.Kind}]", Tag = connection, IsExpanded = true };
-            foreach (var query in _workspace.State.ExtractQueries.Where(q => q.ConnectionId == connection.Id).OrderBy(q => q.Name))
+            foreach (var query in extractQueries.Where(q => q.ConnectionId == connection.Id).OrderBy(q => q.Name))
             {
                 item.Items.Add(new TreeViewItem { Header = $"{query.Name}.sql ({query.RowCount:N0} rows)", Tag = query });
             }

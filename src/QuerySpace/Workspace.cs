@@ -9,6 +9,7 @@ public sealed class Workspace
 {
     private const string AppName = "QuerySpace";
     private readonly JsonSerializerOptions _jsonOptions = new() { WriteIndented = true };
+    private readonly object _syncRoot = new();
 
     public string Root { get; private set; }
     public string DatasetsFolder => Path.Combine(Root, "datasets");
@@ -51,34 +52,46 @@ public sealed class Workspace
 
     public string EnsureDatasetNameAvailable(string name, string? excludeId = null)
     {
-        var safe = SafeName(name);
-        if (State.Datasets.Any(d => d.Name.Equals(safe, StringComparison.OrdinalIgnoreCase) && d.Id != excludeId))
+        lock (_syncRoot)
         {
-            throw new InvalidOperationException($"Dataset name \"{safe}\" already exists. Delete the existing dataset and re-create it, or save with a different dataset name.");
+            var safe = SafeName(name);
+            if (State.Datasets.Any(d => d.Name.Equals(safe, StringComparison.OrdinalIgnoreCase) && d.Id != excludeId))
+            {
+                throw new InvalidOperationException($"Dataset name \"{safe}\" already exists. Delete the existing dataset and re-create it, or save with a different dataset name.");
+            }
+            return safe;
         }
-        return safe;
     }
 
     public DatasetInfo AddDataset(string name, string path, string? sourcePath, long? rowCount)
     {
-        var safe = EnsureDatasetNameAvailable(name);
-        var dataset = new DatasetInfo { Name = safe, Path = path, SourcePath = sourcePath, RowCount = rowCount };
-        State.Datasets.Add(dataset);
-        Save();
-        return dataset;
+        lock (_syncRoot)
+        {
+            var safe = EnsureDatasetNameAvailable(name);
+            var dataset = new DatasetInfo { Name = safe, Path = path, SourcePath = sourcePath, RowCount = rowCount };
+            State.Datasets.Add(dataset);
+            Save();
+            return dataset;
+        }
     }
 
     public void RenameDataset(DatasetInfo dataset, string newName)
     {
-        dataset.Name = EnsureDatasetNameAvailable(newName, dataset.Id);
-        Save();
+        lock (_syncRoot)
+        {
+            dataset.Name = EnsureDatasetNameAvailable(newName, dataset.Id);
+            Save();
+        }
     }
 
     public void DeleteDataset(DatasetInfo dataset)
     {
-        State.Datasets.RemoveAll(d => d.Id == dataset.Id);
-        if (File.Exists(dataset.Path)) File.Delete(dataset.Path);
-        Save();
+        lock (_syncRoot)
+        {
+            State.Datasets.RemoveAll(d => d.Id == dataset.Id);
+            DeleteWorkspaceFileIfExists(dataset.Path, DatasetsFolder);
+            Save();
+        }
     }
 
     public void SaveScript(string name, string sql)
@@ -96,32 +109,41 @@ public sealed class Workspace
 
     public SavedConnection AddConnection(string name, string kind, Dictionary<string, string> config, string? secret)
     {
-        var connection = new SavedConnection { Name = name.Trim(), Kind = kind, Config = config };
-        State.Connections.Add(connection);
-        SaveSecret(connection.Id, secret ?? "");
-        Save();
-        return connection;
+        lock (_syncRoot)
+        {
+            var connection = new SavedConnection { Name = name.Trim(), Kind = kind, Config = config };
+            State.Connections.Add(connection);
+            SaveSecret(connection.Id, secret ?? "");
+            Save();
+            return connection;
+        }
     }
 
     public void UpdateConnection(SavedConnection connection, string name, string kind, Dictionary<string, string> config, string? secret)
     {
-        connection.Name = name.Trim();
-        connection.Kind = kind;
-        connection.Config = config;
-        if (!string.IsNullOrEmpty(secret)) SaveSecret(connection.Id, secret);
-        Save();
+        lock (_syncRoot)
+        {
+            connection.Name = name.Trim();
+            connection.Kind = kind;
+            connection.Config = config;
+            if (!string.IsNullOrEmpty(secret)) SaveSecret(connection.Id, secret);
+            Save();
+        }
     }
 
     public void DeleteConnection(SavedConnection connection)
     {
-        foreach (var query in State.ExtractQueries.Where(q => q.ConnectionId == connection.Id).ToList())
+        lock (_syncRoot)
         {
-            if (File.Exists(query.SqlPath)) File.Delete(query.SqlPath);
-            State.ExtractQueries.Remove(query);
+            foreach (var query in State.ExtractQueries.Where(q => q.ConnectionId == connection.Id).ToList())
+            {
+                DeleteWorkspaceFileIfExists(query.SqlPath, ScriptsFolder);
+                State.ExtractQueries.Remove(query);
+            }
+            State.Connections.RemoveAll(c => c.Id == connection.Id);
+            DeleteSecret(connection.Id);
+            Save();
         }
-        State.Connections.RemoveAll(c => c.Id == connection.Id);
-        DeleteSecret(connection.Id);
-        Save();
     }
 
     public string GetSecret(string connectionId)
@@ -141,36 +163,69 @@ public sealed class Workspace
 
     public ExtractQueryInfo RecordExtractQuery(string connectionId, string? datasetId, string datasetName, string sql, long? rowCount, string status)
     {
-        var folder = Path.Combine(ScriptsFolder, "connections", connectionId);
-        Directory.CreateDirectory(folder);
-        var name = SafeName(datasetName);
-        var path = Path.Combine(folder, name + ".sql");
-        File.WriteAllText(path, sql);
-        var query = new ExtractQueryInfo
+        lock (_syncRoot)
         {
-            ConnectionId = connectionId,
-            DatasetId = datasetId,
-            Name = name,
-            SqlPath = path,
-            RowCount = rowCount,
-            Status = status
-        };
-        State.ExtractQueries.Add(query);
-        Save();
-        return query;
+            var folder = Path.Combine(ScriptsFolder, "connections", connectionId);
+            Directory.CreateDirectory(folder);
+            var name = SafeName(datasetName);
+            var path = Path.Combine(folder, name + ".sql");
+            File.WriteAllText(path, sql);
+            var query = new ExtractQueryInfo
+            {
+                ConnectionId = connectionId,
+                DatasetId = datasetId,
+                Name = name,
+                SqlPath = path,
+                RowCount = rowCount,
+                Status = status
+            };
+            State.ExtractQueries.Add(query);
+            Save();
+            return query;
+        }
     }
 
     public void DeleteExtractQuery(ExtractQueryInfo query)
     {
-        if (File.Exists(query.SqlPath)) File.Delete(query.SqlPath);
-        State.ExtractQueries.RemoveAll(q => q.Id == query.Id);
-        Save();
+        lock (_syncRoot)
+        {
+            DeleteWorkspaceFileIfExists(query.SqlPath, ScriptsFolder);
+            State.ExtractQueries.RemoveAll(q => q.Id == query.Id);
+            Save();
+        }
     }
 
     public void Save()
     {
-        EnsureFolders();
-        File.WriteAllText(MetadataPath, JsonSerializer.Serialize(State, _jsonOptions));
+        lock (_syncRoot)
+        {
+            EnsureFolders();
+            File.WriteAllText(MetadataPath, JsonSerializer.Serialize(State, _jsonOptions));
+        }
+    }
+
+    public List<DatasetInfo> SnapshotDatasets()
+    {
+        lock (_syncRoot)
+        {
+            return State.Datasets.ToList();
+        }
+    }
+
+    public List<SavedConnection> SnapshotConnections()
+    {
+        lock (_syncRoot)
+        {
+            return State.Connections.ToList();
+        }
+    }
+
+    public List<ExtractQueryInfo> SnapshotExtractQueries()
+    {
+        lock (_syncRoot)
+        {
+            return State.ExtractQueries.ToList();
+        }
     }
 
     private void Load()
@@ -201,7 +256,23 @@ public sealed class Workspace
     private void DeleteSecret(string connectionId)
     {
         var path = Path.Combine(SecretsFolder, connectionId + ".bin");
-        if (File.Exists(path)) File.Delete(path);
+        DeleteWorkspaceFileIfExists(path, SecretsFolder);
+    }
+
+    private static void DeleteWorkspaceFileIfExists(string path, string allowedFolder)
+    {
+        if (string.IsNullOrWhiteSpace(path)) return;
+        var fullPath = Path.GetFullPath(path);
+        var fullAllowedFolder = Path.GetFullPath(allowedFolder);
+        if (!fullAllowedFolder.EndsWith(Path.DirectorySeparatorChar))
+        {
+            fullAllowedFolder += Path.DirectorySeparatorChar;
+        }
+        if (!fullPath.StartsWith(fullAllowedFolder, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException($"Refusing to delete a file outside the QuerySpace workspace: {fullPath}");
+        }
+        if (File.Exists(fullPath)) File.Delete(fullPath);
     }
 
     private static string? LoadConfiguredRoot()

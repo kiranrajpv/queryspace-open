@@ -17,6 +17,7 @@ public sealed class DataEngine
 {
     private readonly Workspace _workspace;
     private DuckDBConnection _memoryConnection = new("Data Source=:memory:");
+    private readonly SemaphoreSlim _memoryConnectionLock = new(1, 1);
 
     public DataEngine(Workspace workspace)
     {
@@ -88,9 +89,13 @@ public sealed class DataEngine
             }
         }
 
-        var connection = mode.Equals("Memory", StringComparison.OrdinalIgnoreCase)
-            ? _memoryConnection
-            : NewOpenDuckConnection();
+        var useMemoryConnection = mode.Equals("Memory", StringComparison.OrdinalIgnoreCase);
+        if (useMemoryConnection)
+        {
+            await _memoryConnectionLock.WaitAsync(token);
+        }
+
+        var connection = useMemoryConnection ? _memoryConnection : NewOpenDuckConnection();
         try
         {
             RegisterDatasetViews(connection);
@@ -120,6 +125,7 @@ public sealed class DataEngine
         finally
         {
             if (!ReferenceEquals(connection, _memoryConnection)) connection.Dispose();
+            if (useMemoryConnection) _memoryConnectionLock.Release();
         }
     }
 
@@ -271,7 +277,7 @@ public sealed class DataEngine
 
     private void RegisterDatasetViews(DuckDBConnection connection)
     {
-        foreach (var dataset in _workspace.State.Datasets)
+        foreach (var dataset in _workspace.SnapshotDatasets())
         {
             using var command = connection.CreateCommand();
             command.CommandText = $"create or replace view \"{Workspace.SafeName(dataset.Name)}\" as select * from read_parquet('{EscapePath(dataset.Path)}')";
@@ -340,15 +346,18 @@ public sealed class DataEngine
 
     private static string BuildOdbcConnectionString(Dictionary<string, string> cfg, string password)
     {
-        var parts = new List<string> { $"DSN={cfg.GetValueOrDefault("dsn", "")}" };
-        if (cfg.TryGetValue("database", out var db) && !string.IsNullOrWhiteSpace(db)) parts.Add($"Database={db}");
-        if (cfg.GetValueOrDefault("trusted") == "true") parts.Add("Trusted_Connection=yes");
+        var builder = new OdbcConnectionStringBuilder
+        {
+            ["DSN"] = cfg.GetValueOrDefault("dsn", "")
+        };
+        if (cfg.TryGetValue("database", out var db) && !string.IsNullOrWhiteSpace(db)) builder["Database"] = db;
+        if (cfg.GetValueOrDefault("trusted") == "true") builder["Trusted_Connection"] = "yes";
         else
         {
-            parts.Add($"UID={cfg.GetValueOrDefault("user", "")}");
-            parts.Add($"PWD={password}");
+            builder["UID"] = cfg.GetValueOrDefault("user", "");
+            builder["PWD"] = password;
         }
-        return string.Join(';', parts);
+        return builder.ConnectionString;
     }
 
     private static string BuildSqlServerConnectionString(Dictionary<string, string> cfg, string password)
