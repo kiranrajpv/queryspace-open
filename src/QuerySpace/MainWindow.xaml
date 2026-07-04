@@ -1,0 +1,95 @@
+<Window x:Class="QuerySpace.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="QuerySpace" Height="820" Width="1280" MinHeight="680" MinWidth="980">
+    <DockPanel>
+        <Border DockPanel.Dock="Top" Background="#0F172A" BorderBrush="#243047" BorderThickness="0,0,0,1" Padding="8">
+            <StackPanel Orientation="Horizontal">
+                <Button Content="Set Workspace" Click="SetWorkspace_Click"/>
+                <Button Content="Import CSV/Excel/Parquet" Click="Import_Click"/>
+                <Button Content="Add Connection" Click="AddConnection_Click"/>
+                <Button Content="Extract Base Query" Click="Extract_Click"/>
+                <Button x:Name="StopExtractButton" Content="Stop Extraction" Visibility="Collapsed" Click="StopExtraction_Click"/>
+                <Button Content="Run SQL" Click="RunSql_Click"/>
+                <Button Content="Save SQL" Click="SaveSql_Click"/>
+                <Button Content="Export Results CSV" Click="ExportCsv_Click"/>
+                <Button Content="Analyze Quality" Click="AnalyzeQuality_Click"/>
+                <TextBlock Text="Use:" VerticalAlignment="Center" Margin="18,0,4,0"/>
+                <ComboBox x:Name="UsageCombo" Width="130" SelectedIndex="0">
+                    <ComboBoxItem Content="Memory"/>
+                    <ComboBoxItem Content="Read Only"/>
+                </ComboBox>
+                <TextBlock Text="Preview rows:" VerticalAlignment="Center" Margin="12,0,4,0"/>
+                <TextBox x:Name="PreviewRowsText" Width="72" Text="1000" VerticalContentAlignment="Center"/>
+            </StackPanel>
+        </Border>
+
+        <StatusBar DockPanel.Dock="Bottom" Background="#0F172A" Foreground="#CBD5E1">
+            <StatusBarItem>
+                <TextBlock x:Name="StatusText" Text="Ready"/>
+            </StatusBarItem>
+            <StatusBarItem HorizontalAlignment="Right">
+                <TextBlock x:Name="WorkspaceText" Text="Workspace: app storage"/>
+            </StatusBarItem>
+        </StatusBar>
+
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="330" MinWidth="240"/>
+                <ColumnDefinition Width="5"/>
+                <ColumnDefinition Width="*" MinWidth="480"/>
+            </Grid.ColumnDefinitions>
+            <TabControl x:Name="ExplorerTabs" Grid.Column="0" Background="#0B1220">
+                <TabItem Header="Local Datasets">
+                    <TreeView x:Name="DatasetsTree" Background="#0B1220" Foreground="#E5E7EB" MouseDoubleClick="DatasetsTree_DoubleClick">
+                        <TreeView.ContextMenu>
+                            <ContextMenu>
+                                <MenuItem Header="Information" Click="DatasetInfo_Click"/>
+                                <MenuItem Header="Rename" Click="RenameDataset_Click"/>
+                                <MenuItem Header="Delete" Click="DeleteDataset_Click"/>
+                            </ContextMenu>
+                        </TreeView.ContextMenu>
+                    </TreeView>
+                </TabItem>
+                <TabItem Header="SQL Scripts">
+                    <TreeView x:Name="ScriptsTree" Background="#0B1220" Foreground="#E5E7EB" MouseDoubleClick="ScriptsTree_DoubleClick">
+                        <TreeView.ContextMenu>
+                            <ContextMenu>
+                                <MenuItem Header="Rename" Click="RenameScript_Click"/>
+                                <MenuItem Header="Delete" Click="DeleteScript_Click"/>
+                            </ContextMenu>
+                        </TreeView.ContextMenu>
+                    </TreeView>
+                </TabItem>
+                <TabItem Header="Connections">
+                    <TreeView x:Name="ConnectionsTree" Background="#0B1220" Foreground="#E5E7EB" MouseDoubleClick="ConnectionsTree_DoubleClick">
+                        <TreeView.ContextMenu>
+                            <ContextMenu>
+                                <MenuItem Header="Edit connection / Open extract query" Click="ConnectionOpen_Click"/>
+                                <MenuItem Header="Delete connection / query" Click="ConnectionDelete_Click"/>
+                            </ContextMenu>
+                        </TreeView.ContextMenu>
+                    </TreeView>
+                </TabItem>
+            </TabControl>
+            <GridSplitter Grid.Column="1" Width="5" HorizontalAlignment="Stretch" Background="#1E293B"/>
+            <Grid Grid.Column="2">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="2*" MinHeight="180"/>
+                    <RowDefinition Height="5"/>
+                    <RowDefinition Height="3*" MinHeight="220"/>
+                </Grid.RowDefinitions>
+                <TextBox x:Name="SqlEditor"
+                         AcceptsReturn="True"
+                         AcceptsTab="True"
+                         FontFamily="Consolas"
+                         FontSize="15"
+                         VerticalScrollBarVisibility="Auto"
+                         HorizontalScrollBarVisibility="Auto"
+                         Text="select * from dataset_name limit 100;"/>
+                <GridSplitter Grid.Row="1" Height="5" HorizontalAlignment="Stretch" Background="#1E293B"/>
+                <DataGrid x:Name="ResultsGrid" Grid.Row="2"/>
+            </Grid>
+        </Grid>
+    </DockPanel>
+</Window>
