@@ -74,19 +74,24 @@ public partial class MainWindow : Window
         }
         var dialog = new ExtractDialog(_workspace.State.Connections, SqlEditor.Text) { Owner = this };
         if (dialog.ShowDialog() != true) return;
-        var password = _workspace.GetSecret(dialog.SelectedConnection.Id);
+        await RunExtractionAsync(dialog.SelectedConnection, dialog.DatasetName, dialog.Sql, dialog.BatchSize, dialog.ExpectedRows);
+    }
+
+    private async Task RunExtractionAsync(SavedConnection connection, string datasetName, string sql, int batchSize, long? expectedRows)
+    {
+        var password = _workspace.GetSecret(connection.Id);
         _extractCts = new CancellationTokenSource();
         StopExtractButton.Visibility = Visibility.Visible;
         try
         {
             var request = new ExtractRequest
             {
-                Connection = dialog.SelectedConnection,
+                Connection = connection,
                 Password = password,
-                DatasetName = dialog.DatasetName,
-                Sql = dialog.Sql,
-                BatchSize = dialog.BatchSize,
-                ExpectedRows = dialog.ExpectedRows
+                DatasetName = datasetName,
+                Sql = sql,
+                BatchSize = batchSize,
+                ExpectedRows = expectedRows
             };
             var dataset = await _engine.ExtractAsync(request, new Progress<string>(m => SetStatus(m, true)), _extractCts.Token);
             SetStatus($"Extracted {dataset.Name}: {dataset.RowCount:N0} rows");
@@ -257,7 +262,7 @@ public partial class MainWindow : Window
         }
     }
 
-    private void OpenConnectionTreeItem()
+    private async void OpenConnectionTreeItem()
     {
         var value = SelectedTreeValue(ConnectionsTree);
         if (value is SavedConnection connection)
@@ -273,7 +278,15 @@ public partial class MainWindow : Window
             var savedConnection = _workspace.State.Connections.FirstOrDefault(c => c.Id == query.ConnectionId);
             if (savedConnection == null) return;
             var dialog = new ExtractDialog(_workspace.State.Connections, File.ReadAllText(query.SqlPath), query.Name, savedConnection.Id) { Owner = this };
-            dialog.ShowDialog();
+            if (dialog.ShowDialog() == true)
+            {
+                if (_extractCts != null)
+                {
+                    MessageBox.Show(this, "An extraction is already running. Stop it before starting another.", "Extract Base Query");
+                    return;
+                }
+                await RunExtractionAsync(dialog.SelectedConnection, dialog.DatasetName, dialog.Sql, dialog.BatchSize, dialog.ExpectedRows);
+            }
         }
     }
 

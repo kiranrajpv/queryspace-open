@@ -1,3 +1,4 @@
+using Microsoft.Win32;
 using System.Windows;
 
 namespace QuerySpace;
@@ -16,7 +17,31 @@ public partial class ConnectionDialog : Window
         InitializeComponent();
         _workspace = workspace;
         _existing = existing;
+        LoadOdbcDsns();
         if (existing != null) Populate(existing);
+    }
+
+    private void LoadOdbcDsns()
+    {
+        var names = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
+        AddDsnNames(Registry.CurrentUser.OpenSubKey(@"Software\ODBC\ODBC.INI\ODBC Data Sources"), names);
+        AddDsnNames(Registry.LocalMachine.OpenSubKey(@"Software\ODBC\ODBC.INI\ODBC Data Sources"), names);
+        foreach (var name in names)
+        {
+            OdbcDsn.Items.Add(name);
+        }
+    }
+
+    private static void AddDsnNames(RegistryKey? key, ISet<string> names)
+    {
+        using (key)
+        {
+            if (key == null) return;
+            foreach (var name in key.GetValueNames())
+            {
+                if (!string.IsNullOrWhiteSpace(name)) names.Add(name);
+            }
+        }
     }
 
     private void Populate(SavedConnection c)

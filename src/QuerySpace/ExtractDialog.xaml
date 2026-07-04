@@ -16,7 +16,7 @@
             <TextBlock Text="Dataset name" Grid.Row="1" Style="{StaticResource FormLabelStyle}"/><TextBox x:Name="DatasetNameText" Grid.Row="1" Grid.Column="1" Style="{StaticResource FormTextBoxStyle}"/>
             <StackPanel Grid.Row="2" Grid.Column="1" Orientation="Horizontal" Margin="0,3,0,9">
                 <TextBlock Text="Batch size" VerticalAlignment="Center"/>
-                <TextBox x:Name="BatchSizeText" Text="50000" Width="90" Margin="8,0,18,0"/>
+                <TextBox x:Name="BatchSizeText" Text="250000" Width="100" Margin="8,0,18,0"/>
                 <TextBlock Text="Expected rows" VerticalAlignment="Center"/>
                 <TextBox x:Name="ExpectedRowsText" Width="120" Margin="8,0,0,0"/>
             </StackPanel>

@@ -71,7 +71,7 @@ public sealed class ExtractRequest
     public string Password { get; init; } = "";
     public string DatasetName { get; init; } = "";
     public string Sql { get; init; } = "";
-    public int BatchSize { get; init; } = 50_000;
+    public int BatchSize { get; init; } = 250_000;
     public long? ExpectedRows { get; init; }
 }
 

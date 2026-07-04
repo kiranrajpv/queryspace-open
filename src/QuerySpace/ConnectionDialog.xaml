@@ -16,7 +16,7 @@
                         <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
                     <TextBlock Text="Connection name" Grid.Row="0" Style="{StaticResource FormLabelStyle}"/><TextBox x:Name="OdbcName" Grid.Row="0" Grid.Column="1" Style="{StaticResource FormTextBoxStyle}"/>
-                    <TextBlock Text="DSN name" Grid.Row="1" Style="{StaticResource FormLabelStyle}"/><TextBox x:Name="OdbcDsn" Grid.Row="1" Grid.Column="1" Style="{StaticResource FormTextBoxStyle}"/>
+                    <TextBlock Text="DSN name" Grid.Row="1" Style="{StaticResource FormLabelStyle}"/><ComboBox x:Name="OdbcDsn" Grid.Row="1" Grid.Column="1" IsEditable="True" Style="{StaticResource FormComboBoxStyle}"/>
                     <TextBlock Text="Database" Grid.Row="2" Style="{StaticResource FormLabelStyle}"/><TextBox x:Name="OdbcDatabase" Grid.Row="2" Grid.Column="1" Style="{StaticResource FormTextBoxStyle}"/>
                     <TextBlock Text="User" Grid.Row="3" Style="{StaticResource FormLabelStyle}"/><TextBox x:Name="OdbcUser" Grid.Row="3" Grid.Column="1" Style="{StaticResource FormTextBoxStyle}"/>
                     <TextBlock Text="Password/token" Grid.Row="4" Style="{StaticResource FormLabelStyle}"/><PasswordBox x:Name="OdbcSecret" Grid.Row="4" Grid.Column="1" Style="{StaticResource FormPasswordBoxStyle}"/>

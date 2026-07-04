@@ -22,14 +22,15 @@ The purpose of this version is to keep the same user workflow while making packa
 - Preview row limit textbox.
 - Export query result to CSV.
 - Data quality report with score, null percentages, unique counts, and CPU-only numeric outlier detection.
-- ODBC DSN connection.
+- ODBC DSN connection with an editable dropdown populated from Windows ODBC Administrator DSNs.
 - Direct SQL Server connection through Microsoft SqlClient.
 - Snowflake token connection through Snowflake .NET connector.
 - SAP HANA should be used through ODBC DSN in this C# edition unless your company separately approves SAP's ADO.NET/HANA client redistribution.
 - Passwords/tokens stored with Windows DPAPI for the current Windows user.
 - Base query extraction streams directly into Zstandard-compressed Parquet row groups with progress feedback and cancellation.
+- Extraction defaults to 250,000-row batches/row groups for better large-extract throughput and compression.
 - All-or-nothing extraction behavior: partial files are deleted on failure/cancel.
-- Saved extract query `.sql` files shown under their connection.
+- Saved extract query `.sql` files shown under their connection; opening one reopens the Extract Base Query dialog pre-filled so it can be rerun.
 - Dataset information dialog with path, file size, rows, and schema.
 - Inno Setup installer script.
 
@@ -151,3 +152,4 @@ C:\Users\kiran\source\queryspace-csharp\installer-output\QuerySpace-CSharp-Setup
 - There is no local HTTP backend, so there is no localhost API for other local processes to call.
 - SAP HANA direct ADO.NET support is not bundled. Use SAP HANA through ODBC DSN unless SAP licensing/deployment is separately approved.
 - For very large extracts, QuerySpace writes database rows directly into Parquet row groups under a `.partial` file and renames it only after the extract succeeds. Cancelled or failed extracts delete the partial file.
+- SQL scripts saved directly by the user appear in **SQL Scripts**. Base extraction SQL appears under the source connection to avoid showing the same query in two places.
