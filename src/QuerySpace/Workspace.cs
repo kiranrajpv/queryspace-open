@@ -54,7 +54,7 @@ public sealed class Workspace
         var safe = SafeName(name);
         if (State.Datasets.Any(d => d.Name.Equals(safe, StringComparison.OrdinalIgnoreCase) && d.Id != excludeId))
         {
-            throw new InvalidOperationException($"Dataset name \"{safe}\" already exists. Delete the existing dataset first, or use a different dataset name.");
+            throw new InvalidOperationException($"Dataset name \"{safe}\" already exists. Delete the existing dataset and re-create it, or save with a different dataset name.");
         }
         return safe;
     }

@@ -28,6 +28,7 @@ public partial class MainWindow : Window
         if (dialog.ShowDialog(this) != true) return;
         var name = Prompt("Dataset name", "Unique dataset name:", Path.GetFileNameWithoutExtension(dialog.FileName));
         if (string.IsNullOrWhiteSpace(name)) return;
+        if (!TryEnsureDatasetNameAvailable(name, "Import dataset")) return;
         try
         {
             SetStatus("Importing...", true);
@@ -80,6 +81,7 @@ public partial class MainWindow : Window
 
     private async Task RunExtractionAsync(SavedConnection connection, string datasetName, string sql, int batchSize, long? expectedRows)
     {
+        if (!TryEnsureDatasetNameAvailable(datasetName, "Extract Base Query")) return;
         var password = _workspace.GetSecret(connection.Id);
         _extractCts = new CancellationTokenSource();
         StopExtractButton.Visibility = Visibility.Visible;
@@ -116,6 +118,21 @@ public partial class MainWindow : Window
             _extractCts = null;
             StopExtractButton.Visibility = Visibility.Collapsed;
             StopExtractProgress();
+        }
+    }
+
+    private bool TryEnsureDatasetNameAvailable(string datasetName, string title)
+    {
+        try
+        {
+            _workspace.EnsureDatasetNameAvailable(datasetName);
+            return true;
+        }
+        catch (InvalidOperationException ex)
+        {
+            SetStatus("Dataset name already exists");
+            MessageBox.Show(this, ex.Message, title, MessageBoxButton.OK, MessageBoxImage.Warning);
+            return false;
         }
     }
 
@@ -372,16 +389,16 @@ public partial class MainWindow : Window
         {
             Title = title,
             Width = 420,
-            Height = 160,
+            Height = 185,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
             ResizeMode = ResizeMode.NoResize
         };
         WindowTitleBar.Apply(window);
         var panel = new StackPanel { Margin = new Thickness(12) };
         var input = new TextBox { Text = defaultValue, Margin = new Thickness(0, 6, 0, 10) };
-        var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
-        var ok = new Button { Content = "OK", IsDefault = true };
-        var cancel = new Button { Content = "Cancel", IsCancel = true };
+        var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 8, 0, 0) };
+        var ok = new Button { Content = "OK", IsDefault = true, MinWidth = 96, MinHeight = 32, Padding = new Thickness(12, 6, 12, 6) };
+        var cancel = new Button { Content = "Cancel", IsCancel = true, MinWidth = 96, MinHeight = 32, Padding = new Thickness(12, 6, 12, 6), Margin = new Thickness(8, 0, 0, 0) };
         ok.Click += (_, _) => window.DialogResult = true;
         buttons.Children.Add(ok);
         buttons.Children.Add(cancel);
