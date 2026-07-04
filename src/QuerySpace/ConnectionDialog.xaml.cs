@@ -66,9 +66,53 @@ public partial class ConnectionDialog : Window
         DialogResult = true;
     }
 
-    private void Test_Click(object sender, RoutedEventArgs e)
+    private async void Test_Click(object sender, RoutedEventArgs e)
     {
-        MessageBox.Show(this, "Connection test will run through the extraction engine after the first restore/build. Save the connection and run a small base query such as SELECT TOP 10 * FROM table.", "Connection test");
+        try
+        {
+            Capture();
+            if (string.IsNullOrWhiteSpace(ConnectionName))
+            {
+                MessageBox.Show(this, "Connection name is required before testing.", "Connection test");
+                return;
+            }
+
+            await DataEngine.TestDatabaseConnectionAsync(Kind, Config, Secret, CancellationToken.None);
+            MessageBox.Show(this, "Connection successful.", "Connection test", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        catch (Exception ex) when (Kind == "sqlserver" && DataEngine.IsSqlServerUntrustedCertificateError(ex))
+        {
+            var result = MessageBox.Show(
+                this,
+                DataEngine.SqlServerCertificateHelp + "\n\nDo you want QuerySpace to enable \"Trust server certificate\" for this connection and test again?",
+                "SQL Server certificate not trusted",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Warning);
+
+            if (result != MessageBoxResult.Yes)
+            {
+                return;
+            }
+
+            SqlTrustCert.IsChecked = true;
+            Capture();
+            try
+            {
+                await DataEngine.TestDatabaseConnectionAsync(Kind, Config, Secret, CancellationToken.None);
+                MessageBox.Show(this, "Connection successful. Click Save to keep the updated certificate setting.", "Connection test", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            catch (Exception retryEx)
+            {
+                MessageBox.Show(this, retryEx.Message, "Connection test failed", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            var detail = Kind == "sqlserver"
+                ? ex.Message + "\n\n" + DataEngine.SqlServerConnectionDiagnostic(Config)
+                : ex.Message;
+            MessageBox.Show(this, detail, "Connection test failed", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
     }
 
     private void Cancel_Click(object sender, RoutedEventArgs e) => DialogResult = false;

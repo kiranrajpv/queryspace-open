@@ -169,6 +169,11 @@ public sealed class DataEngine
             _workspace.RecordExtractQuery(request.Connection.Id, null, name, request.Sql, null, "cancelled");
             throw;
         }
+        catch (Exception ex) when (IsSqlServerUntrustedCertificateError(ex))
+        {
+            _workspace.RecordExtractQuery(request.Connection.Id, null, name, request.Sql, null, "failed");
+            throw new InvalidOperationException(SqlServerCertificateHelp + "\n\n" + SqlServerConnectionDiagnostic(request.Connection.Config), ex);
+        }
         catch
         {
             _workspace.RecordExtractQuery(request.Connection.Id, null, name, request.Sql, null, "failed");
@@ -289,6 +294,46 @@ public sealed class DataEngine
             "snowflake" => new SnowflakeDbConnection { ConnectionString = BuildSnowflakeConnectionString(cfg, password) },
             _ => throw new InvalidOperationException("C# version currently supports ODBC, SQL Server, and Snowflake. Use SAP HANA through an ODBC DSN.")
         };
+    }
+
+    public static async Task TestDatabaseConnectionAsync(string kind, Dictionary<string, string> config, string password, CancellationToken token)
+    {
+        await using var connection = OpenDatabaseConnection(new SavedConnection { Kind = kind, Config = config }, password);
+        await connection.OpenAsync(token);
+        await using var command = connection.CreateCommand();
+        command.CommandText = "select 1";
+        command.CommandTimeout = 15;
+        _ = await command.ExecuteScalarAsync(token);
+    }
+
+    public const string SqlServerCertificateHelp =
+        "SQL Server connection reached the server, but TLS certificate validation failed.\n\n" +
+        "For local SQL Server Express or development SQL Server instances that use a self-signed/untrusted certificate, " +
+        "enable \"Trust server certificate\" in the SQL Server connection settings and save the connection.\n\n" +
+        "For production servers, install/use a certificate that chains to a trusted company root certificate instead of trusting the server certificate.";
+
+    public static string SqlServerConnectionDiagnostic(Dictionary<string, string> config)
+    {
+        return
+            "Current SQL Server TLS settings used by QuerySpace:\n" +
+            $"- Encrypt: {config.GetValueOrDefault("encrypt", "true")}\n" +
+            $"- Trust server certificate: {config.GetValueOrDefault("trustServerCertificate", "false")}\n" +
+            $"- Server: {config.GetValueOrDefault("server", "")}\n" +
+            $"- Database: {config.GetValueOrDefault("database", "")}";
+    }
+
+    public static bool IsSqlServerUntrustedCertificateError(Exception ex)
+    {
+        for (Exception? current = ex; current != null; current = current.InnerException)
+        {
+            var message = current.Message;
+            if (message.Contains("certificate chain was issued by an authority that is not trusted", StringComparison.OrdinalIgnoreCase) ||
+                message.Contains("SSL Provider", StringComparison.OrdinalIgnoreCase) && message.Contains("certificate", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static string BuildOdbcConnectionString(Dictionary<string, string> cfg, string password)

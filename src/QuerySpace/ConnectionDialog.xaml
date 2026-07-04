@@ -37,7 +37,7 @@
                     <CheckBox x:Name="SqlTrusted" Content="Windows integrated authentication" Grid.Row="5" Grid.Column="1" Margin="0,4,0,8"/>
                     <StackPanel Grid.Row="6" Grid.Column="1">
                         <CheckBox x:Name="SqlEncrypt" Content="Require SSL/TLS encryption" IsChecked="True" Margin="0,4,0,4"/>
-                        <CheckBox x:Name="SqlTrustCert" Content="Trust server certificate" Margin="0,4,0,4"/>
+                        <CheckBox x:Name="SqlTrustCert" Content="Trust server certificate (local/dev self-signed certificates)" Margin="0,4,0,4"/>
                     </StackPanel>
                 </Grid>
             </TabItem>
