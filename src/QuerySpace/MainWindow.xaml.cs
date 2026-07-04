@@ -93,7 +93,9 @@ public partial class MainWindow : Window
                 BatchSize = batchSize,
                 ExpectedRows = expectedRows
             };
-            var dataset = await _engine.ExtractAsync(request, new Progress<string>(m => SetStatus(m, true)), _extractCts.Token);
+            SetStatus($"Starting extraction for {datasetName}...", true);
+            var progress = new Progress<string>(m => SetStatus(m, true));
+            var dataset = await Task.Run(() => _engine.ExtractAsync(request, progress, _extractCts.Token), _extractCts.Token);
             SetStatus($"Extracted {dataset.Name}: {dataset.RowCount:N0} rows");
             RefreshExplorer();
         }
@@ -130,10 +132,10 @@ public partial class MainWindow : Window
             var mode = UsageCombo.SelectedItem is ComboBoxItem item
                 ? item.Content?.ToString() ?? "Memory"
                 : UsageCombo.SelectedItem?.ToString() ?? "Memory";
-            var result = await _engine.ExecuteAsync(SqlEditor.Text, previewRows, mode, CancellationToken.None);
+            var result = await Task.Run(() => _engine.ExecuteAsync(SqlEditor.Text, previewRows, mode, CancellationToken.None));
             _currentResults = result.Table;
             ResultsGrid.ItemsSource = result.Table.DefaultView;
-            SetStatus($"Displayed {result.DisplayedRows:N0} preview rows");
+            SetStatus($"SQL completed. Displayed {result.DisplayedRows:N0} preview rows.");
         }
         catch (Exception ex)
         {
@@ -330,7 +332,7 @@ public partial class MainWindow : Window
 
     private void SetStatus(string message, bool busy = false)
     {
-        StatusText.Text = busy ? message + "…" : message;
+        StatusText.Text = busy ? message + "..." : message;
         StopExtractButton.IsEnabled = true;
     }
 

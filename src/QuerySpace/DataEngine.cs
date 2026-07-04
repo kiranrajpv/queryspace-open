@@ -153,7 +153,9 @@ public sealed class DataEngine
             await using var command = connection.CreateCommand();
             command.CommandText = request.Sql;
             command.CommandTimeout = 0;
+            progress?.Report("Executing base query...");
             await using var reader = await command.ExecuteReaderAsync(CommandBehavior.SequentialAccess, token);
+            progress?.Report("Writing Parquet row groups...");
             var rows = await WriteReaderToParquetAsync(reader, partialParquet, request.BatchSize, progress, token);
             if (request.ExpectedRows.HasValue && request.ExpectedRows.Value != rows)
             {
@@ -400,6 +402,8 @@ public sealed class DataEngine
             cancellationToken: token);
         long rows = 0;
         var batchRows = 0;
+        var progressInterval = Math.Max(50_000, Math.Min(batchSize, 250_000));
+        var nextProgressRows = progressInterval;
         while (await reader.ReadAsync(token))
         {
             token.ThrowIfCancellationRequested();
@@ -409,6 +413,11 @@ public sealed class DataEngine
             }
             rows++;
             batchRows++;
+            if (rows >= nextProgressRows)
+            {
+                progress?.Report($"Extracted {rows:N0} rows...");
+                nextProgressRows += progressInterval;
+            }
             if (batchRows >= batchSize)
             {
                 await WriteParquetRowGroupAsync(writer, columns, token);
