@@ -23,6 +23,9 @@
             <StatusBarItem>
                 <TextBlock x:Name="StatusText" Text="Ready"/>
             </StatusBarItem>
+            <StatusBarItem>
+                <ProgressBar x:Name="ExtractProgressBar" Width="160" Height="16" Minimum="0" Maximum="100" Visibility="Collapsed"/>
+            </StatusBarItem>
             <StatusBarItem HorizontalAlignment="Right">
                 <TextBlock x:Name="WorkspaceText" Text="Workspace: app storage"/>
             </StatusBarItem>

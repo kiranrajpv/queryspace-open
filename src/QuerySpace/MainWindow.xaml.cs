@@ -82,6 +82,7 @@ public partial class MainWindow : Window
         var password = _workspace.GetSecret(connection.Id);
         _extractCts = new CancellationTokenSource();
         StopExtractButton.Visibility = Visibility.Visible;
+        StartExtractProgress(expectedRows);
         try
         {
             var request = new ExtractRequest
@@ -94,7 +95,7 @@ public partial class MainWindow : Window
                 ExpectedRows = expectedRows
             };
             SetStatus($"Starting extraction for {datasetName}...", true);
-            var progress = new Progress<string>(m => SetStatus(m, true));
+            var progress = new Progress<ExtractProgress>(UpdateExtractProgress);
             var dataset = await Task.Run(() => _engine.ExtractAsync(request, progress, _extractCts.Token), _extractCts.Token);
             SetStatus($"Extracted {dataset.Name}: {dataset.RowCount:N0} rows");
             RefreshExplorer();
@@ -113,6 +114,31 @@ public partial class MainWindow : Window
             _extractCts?.Dispose();
             _extractCts = null;
             StopExtractButton.Visibility = Visibility.Collapsed;
+            StopExtractProgress();
+        }
+    }
+
+    private void StartExtractProgress(long? expectedRows)
+    {
+        ExtractProgressBar.Visibility = Visibility.Visible;
+        ExtractProgressBar.Value = 0;
+        ExtractProgressBar.IsIndeterminate = !expectedRows.HasValue || expectedRows.Value <= 0;
+    }
+
+    private void StopExtractProgress()
+    {
+        ExtractProgressBar.IsIndeterminate = false;
+        ExtractProgressBar.Value = 0;
+        ExtractProgressBar.Visibility = Visibility.Collapsed;
+    }
+
+    private void UpdateExtractProgress(ExtractProgress progress)
+    {
+        SetStatus(progress.Message, true);
+        if (progress.ExpectedRows.HasValue && progress.ExpectedRows.Value > 0 && progress.Rows.HasValue)
+        {
+            ExtractProgressBar.IsIndeterminate = false;
+            ExtractProgressBar.Value = Math.Min(100, progress.Rows.Value * 100.0 / progress.ExpectedRows.Value);
         }
     }
 

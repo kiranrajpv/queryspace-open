@@ -137,7 +137,7 @@ public sealed class DataEngine
         }, token);
     }
 
-    public async Task<DatasetInfo> ExtractAsync(ExtractRequest request, IProgress<string>? progress, CancellationToken token)
+    public async Task<DatasetInfo> ExtractAsync(ExtractRequest request, IProgress<ExtractProgress>? progress, CancellationToken token)
     {
         var name = _workspace.EnsureDatasetNameAvailable(request.DatasetName);
         var finalPath = Path.Combine(_workspace.DatasetsFolder, name + ".parquet");
@@ -147,16 +147,16 @@ public sealed class DataEngine
 
         try
         {
-            progress?.Report($"Connecting to {request.Connection.Kind}...");
+            progress?.Report(new ExtractProgress { Message = $"Connecting to {request.Connection.Kind}...", ExpectedRows = request.ExpectedRows });
             await using var connection = OpenDatabaseConnection(request.Connection, request.Password);
             await connection.OpenAsync(token);
             await using var command = connection.CreateCommand();
             command.CommandText = request.Sql;
             command.CommandTimeout = 0;
-            progress?.Report("Executing base query...");
+            progress?.Report(new ExtractProgress { Message = "Executing base query...", ExpectedRows = request.ExpectedRows });
             await using var reader = await command.ExecuteReaderAsync(CommandBehavior.SequentialAccess, token);
-            progress?.Report("Writing Parquet row groups...");
-            var rows = await WriteReaderToParquetAsync(reader, partialParquet, request.BatchSize, progress, token);
+            progress?.Report(new ExtractProgress { Message = "Writing Parquet row groups...", ExpectedRows = request.ExpectedRows });
+            var rows = await WriteReaderToParquetAsync(reader, partialParquet, request.BatchSize, request.ExpectedRows, progress, token);
             if (request.ExpectedRows.HasValue && request.ExpectedRows.Value != rows)
             {
                 throw new InvalidOperationException($"Expected {request.ExpectedRows.Value:N0} rows but extracted {rows:N0}. Partial output was discarded.");
@@ -386,7 +386,7 @@ public sealed class DataEngine
         return string.Join(';', parts.Where(p => !p.EndsWith("=", StringComparison.Ordinal)));
     }
 
-    private static async Task<long> WriteReaderToParquetAsync(DbDataReader reader, string path, int batchSize, IProgress<string>? progress, CancellationToken token)
+    private static async Task<long> WriteReaderToParquetAsync(DbDataReader reader, string path, int batchSize, long? expectedRows, IProgress<ExtractProgress>? progress, CancellationToken token)
     {
         if (reader.FieldCount == 0) throw new InvalidOperationException("The base query returned no columns.");
         var columnNames = UniqueColumnNames(Enumerable.Range(0, reader.FieldCount).Select(reader.GetName));
@@ -415,21 +415,21 @@ public sealed class DataEngine
             batchRows++;
             if (rows >= nextProgressRows)
             {
-                progress?.Report($"Extracted {rows:N0} rows...");
+                progress?.Report(new ExtractProgress { Message = $"Extracted {rows:N0} rows...", Rows = rows, ExpectedRows = expectedRows });
                 nextProgressRows += progressInterval;
             }
             if (batchRows >= batchSize)
             {
                 await WriteParquetRowGroupAsync(writer, columns, token);
                 batchRows = 0;
-                progress?.Report($"Extracted {rows:N0} rows...");
+                progress?.Report(new ExtractProgress { Message = $"Extracted {rows:N0} rows...", Rows = rows, ExpectedRows = expectedRows });
             }
         }
         if (batchRows > 0)
         {
             await WriteParquetRowGroupAsync(writer, columns, token);
         }
-        progress?.Report($"Extracted {rows:N0} rows.");
+        progress?.Report(new ExtractProgress { Message = $"Extracted {rows:N0} rows.", Rows = rows, ExpectedRows = expectedRows });
         return rows;
     }
 

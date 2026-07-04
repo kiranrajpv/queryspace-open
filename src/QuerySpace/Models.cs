@@ -41,6 +41,13 @@ public sealed class WorkspaceState
     public List<ExtractQueryInfo> ExtractQueries { get; set; } = new();
 }
 
+public sealed class ExtractProgress
+{
+    public string Message { get; init; } = "";
+    public long? Rows { get; init; }
+    public long? ExpectedRows { get; init; }
+}
+
 public sealed class QueryResult
 {
     public DataTable Table { get; init; } = new();
