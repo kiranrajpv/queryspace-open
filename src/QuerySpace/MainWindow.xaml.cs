@@ -122,7 +122,9 @@ public partial class MainWindow : Window
         {
             SetStatus("Running SQL...", true);
             var previewRows = int.TryParse(PreviewRowsText.Text, out var value) ? value : 1000;
-            var mode = ((ComboBoxItem)UsageCombo.SelectedItem).Content?.ToString() ?? "Memory";
+            var mode = UsageCombo.SelectedItem is ComboBoxItem item
+                ? item.Content?.ToString() ?? "Memory"
+                : UsageCombo.SelectedItem?.ToString() ?? "Memory";
             var result = await _engine.ExecuteAsync(SqlEditor.Text, previewRows, mode, CancellationToken.None);
             _currentResults = result.Table;
             ResultsGrid.ItemsSource = result.Table.DefaultView;
