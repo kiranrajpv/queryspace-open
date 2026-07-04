@@ -3,13 +3,6 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="QuerySpace" Height="820" Width="1280" MinHeight="680" MinWidth="980">
     <DockPanel>
-        <Border DockPanel.Dock="Top" Background="#005CAB" Padding="12,7">
-            <TextBlock Text="QuerySpace"
-                       Foreground="White"
-                       FontSize="18"
-                       FontWeight="SemiBold"
-                       VerticalAlignment="Center"/>
-        </Border>
         <Border DockPanel.Dock="Top" Padding="10,8">
             <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">

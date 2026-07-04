@@ -13,6 +13,7 @@ public partial class ExtractDialog : Window
     public ExtractDialog(IEnumerable<SavedConnection> connections, string sql, string datasetName = "database_extract", string? connectionId = null)
     {
         InitializeComponent();
+        WindowTitleBar.Apply(this);
         var list = connections.ToList();
         ConnectionBox.ItemsSource = list;
         ConnectionBox.SelectedItem = list.FirstOrDefault(c => c.Id == connectionId) ?? list.FirstOrDefault();

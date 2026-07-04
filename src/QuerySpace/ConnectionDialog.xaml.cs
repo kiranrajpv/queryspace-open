@@ -15,6 +15,7 @@ public partial class ConnectionDialog : Window
     public ConnectionDialog(Workspace workspace, SavedConnection? existing = null)
     {
         InitializeComponent();
+        WindowTitleBar.Apply(this);
         _workspace = workspace;
         _existing = existing;
         LoadOdbcDsns();

@@ -16,6 +16,7 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        WindowTitleBar.Apply(this);
         _engine = new DataEngine(_workspace);
         RefreshExplorer();
         SetStatus("Ready");
@@ -375,6 +376,7 @@ public partial class MainWindow : Window
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
             ResizeMode = ResizeMode.NoResize
         };
+        WindowTitleBar.Apply(window);
         var panel = new StackPanel { Margin = new Thickness(12) };
         var input = new TextBox { Text = defaultValue, Margin = new Thickness(0, 6, 0, 10) };
         var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };

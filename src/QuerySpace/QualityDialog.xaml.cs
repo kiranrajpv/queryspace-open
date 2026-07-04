@@ -7,6 +7,7 @@ public partial class QualityDialog : Window
     public QualityDialog(QualityReport report)
     {
         InitializeComponent();
+        WindowTitleBar.Apply(this);
         SummaryText.Text = $"Quality score: {report.QualityScore}    Rows analyzed: {report.RowsAnalyzed:N0}    Numeric outliers: {report.NumericOutliers:N0}";
         ColumnsGrid.ItemsSource = report.Columns;
     }
