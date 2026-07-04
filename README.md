@@ -27,7 +27,7 @@ The purpose of this version is to keep the same user workflow while making packa
 - Snowflake token connection through Snowflake .NET connector.
 - SAP HANA should be used through ODBC DSN in this C# edition unless your company separately approves SAP's ADO.NET/HANA client redistribution.
 - Passwords/tokens stored with Windows DPAPI for the current Windows user.
-- Base query extraction to Parquet with progress feedback and cancellation.
+- Base query extraction streams directly into Zstandard-compressed Parquet row groups with progress feedback and cancellation.
 - All-or-nothing extraction behavior: partial files are deleted on failure/cancel.
 - Saved extract query `.sql` files shown under their connection.
 - Dataset information dialog with path, file size, rows, and schema.
@@ -46,7 +46,7 @@ installer\             Inno Setup installer script
 | Library / Technology | Used for | License / note |
 |---|---|---|
 | .NET 9 / WPF | Native Windows desktop application | MIT, .NET Foundation / Microsoft |
-| DuckDB.NET.Data | SQL over Parquet, CSV-to-Parquet conversion, result execution | MIT |
+| DuckDB.NET.Data.Full | SQL over Parquet, CSV-to-Parquet conversion, result execution, and bundled native DuckDB runtime | MIT |
 | DuckDB native engine | Embedded analytical SQL engine | MIT |
 | CsvHelper | CSV handling support | MS-PL / Apache-2.0 dual license, depending package version |
 | ExcelDataReader | Read `.xls` and `.xlsx` files | MIT |
@@ -55,7 +55,7 @@ installer\             Inno Setup installer script
 | System.Data.Odbc | ODBC DSN connectivity | MIT / .NET runtime license |
 | Snowflake.Data | Snowflake database connectivity | Apache-2.0 |
 | Microsoft.ML | Future/advanced local ML quality checks; current implementation uses CPU-only statistical outlier detection | MIT |
-| Parquet.Net | Direct Parquet library reference for future schema/write enhancements; current MVP uses DuckDB for Parquet read/write | MIT |
+| Parquet.Net | Direct database extraction into Parquet row groups | MIT |
 | System.Security.Cryptography.ProtectedData | Windows DPAPI secret encryption | MIT / .NET runtime license |
 | Inno Setup 6 | Windows setup executable | Inno Setup license, source available |
 
@@ -150,4 +150,4 @@ C:\Users\kiran\source\queryspace-csharp\installer-output\QuerySpace-CSharp-Setup
 - This repo intentionally does not use Python, PyInstaller, Qt/PySide, Tauri, Node.js, or FastAPI.
 - There is no local HTTP backend, so there is no localhost API for other local processes to call.
 - SAP HANA direct ADO.NET support is not bundled. Use SAP HANA through ODBC DSN unless SAP licensing/deployment is separately approved.
-- For very large extracts, this first C# version writes a temporary CSV and then compresses it to Parquet. That keeps all-or-nothing behavior simple but can require extra temporary disk space. A later version should stream directly to Parquet row groups.
+- For very large extracts, QuerySpace writes database rows directly into Parquet row groups under a `.partial` file and renames it only after the extract succeeds. Cancelled or failed extracts delete the partial file.

@@ -4,6 +4,7 @@
         Title="QuerySpace" Height="820" Width="1280" MinHeight="680" MinWidth="980">
     <DockPanel>
         <Border DockPanel.Dock="Top" Background="#0F172A" BorderBrush="#243047" BorderThickness="0,0,0,1" Padding="8">
+            <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
             <StackPanel Orientation="Horizontal">
                 <Button Content="Set Workspace" Click="SetWorkspace_Click"/>
                 <Button Content="Import CSV/Excel/Parquet" Click="Import_Click"/>
@@ -14,14 +15,15 @@
                 <Button Content="Save SQL" Click="SaveSql_Click"/>
                 <Button Content="Export Results CSV" Click="ExportCsv_Click"/>
                 <Button Content="Analyze Quality" Click="AnalyzeQuality_Click"/>
-                <TextBlock Text="Use:" VerticalAlignment="Center" Margin="18,0,4,0"/>
-                <ComboBox x:Name="UsageCombo" Width="130" SelectedIndex="0">
+                <TextBlock Text="Use:" Foreground="#E5E7EB" VerticalAlignment="Center" Margin="18,0,4,0"/>
+                <ComboBox x:Name="UsageCombo" Width="130" MinHeight="32" SelectedIndex="0">
                     <ComboBoxItem Content="Memory"/>
                     <ComboBoxItem Content="Read Only"/>
                 </ComboBox>
-                <TextBlock Text="Preview rows:" VerticalAlignment="Center" Margin="12,0,4,0"/>
-                <TextBox x:Name="PreviewRowsText" Width="72" Text="1000" VerticalContentAlignment="Center"/>
+                <TextBlock Text="Preview rows:" Foreground="#E5E7EB" VerticalAlignment="Center" Margin="12,0,4,0"/>
+                <TextBox x:Name="PreviewRowsText" Width="96" MinWidth="96" MinHeight="32" Text="1000" VerticalContentAlignment="Center" Foreground="#E5E7EB" Background="#020617"/>
             </StackPanel>
+            </ScrollViewer>
         </Border>
 
         <StatusBar DockPanel.Dock="Bottom" Background="#0F172A" Foreground="#CBD5E1">

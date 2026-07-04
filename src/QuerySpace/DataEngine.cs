@@ -1,6 +1,8 @@
 using DuckDB.NET.Data;
 using ExcelDataReader;
 using Microsoft.Data.SqlClient;
+using Parquet;
+using Parquet.Schema;
 using Snowflake.Data.Client;
 using System.Data;
 using System.Data.Common;
@@ -139,10 +141,8 @@ public sealed class DataEngine
     {
         var name = _workspace.EnsureDatasetNameAvailable(request.DatasetName);
         var finalPath = Path.Combine(_workspace.DatasetsFolder, name + ".parquet");
-        var partialCsv = finalPath + ".partial.csv";
         var partialParquet = finalPath + ".partial";
         if (File.Exists(finalPath)) throw new InvalidOperationException($"Parquet file already exists: {finalPath}");
-        if (File.Exists(partialCsv)) File.Delete(partialCsv);
         if (File.Exists(partialParquet)) File.Delete(partialParquet);
 
         try
@@ -154,13 +154,11 @@ public sealed class DataEngine
             command.CommandText = request.Sql;
             command.CommandTimeout = 0;
             await using var reader = await command.ExecuteReaderAsync(CommandBehavior.SequentialAccess, token);
-            var rows = await WriteReaderToCsvAsync(reader, partialCsv, request.BatchSize, progress, token);
+            var rows = await WriteReaderToParquetAsync(reader, partialParquet, request.BatchSize, progress, token);
             if (request.ExpectedRows.HasValue && request.ExpectedRows.Value != rows)
             {
                 throw new InvalidOperationException($"Expected {request.ExpectedRows.Value:N0} rows but extracted {rows:N0}. Partial output was discarded.");
             }
-            progress?.Report("Compressing extracted rows to Parquet...");
-            await CopyCsvToParquetAsync(partialCsv, partialParquet, token);
             File.Move(partialParquet, finalPath);
             var dataset = _workspace.AddDataset(name, finalPath, null, rows);
             _workspace.RecordExtractQuery(request.Connection.Id, dataset.Id, name, request.Sql, rows, "completed");
@@ -178,7 +176,6 @@ public sealed class DataEngine
         }
         finally
         {
-            if (File.Exists(partialCsv)) File.Delete(partialCsv);
             if (File.Exists(partialParquet)) File.Delete(partialParquet);
         }
     }
@@ -342,27 +339,55 @@ public sealed class DataEngine
         return string.Join(';', parts.Where(p => !p.EndsWith("=", StringComparison.Ordinal)));
     }
 
-    private static async Task<long> WriteReaderToCsvAsync(DbDataReader reader, string path, int batchSize, IProgress<string>? progress, CancellationToken token)
+    private static async Task<long> WriteReaderToParquetAsync(DbDataReader reader, string path, int batchSize, IProgress<string>? progress, CancellationToken token)
     {
+        if (reader.FieldCount == 0) throw new InvalidOperationException("The base query returned no columns.");
+        var columnNames = UniqueColumnNames(Enumerable.Range(0, reader.FieldCount).Select(reader.GetName));
+        var columns = Enumerable.Range(0, reader.FieldCount)
+            .Select(i => ParquetColumnBuffer.Create(columnNames[i], reader.GetFieldType(i)))
+            .ToList();
+        var schema = new ParquetSchema(columns.Select(c => c.Field));
         await using var stream = File.Create(path);
-        await using var writer = new StreamWriter(stream, new UTF8Encoding(false));
-        var headers = Enumerable.Range(0, reader.FieldCount).Select(reader.GetName);
-        await writer.WriteLineAsync(string.Join(",", headers.Select(EscapeCsv)));
+        await using var writer = await ParquetWriter.CreateAsync(
+            schema,
+            stream,
+            new ParquetOptions { CompressionMethod = CompressionMethod.Zstd },
+            cancellationToken: token);
         long rows = 0;
+        var batchRows = 0;
         while (await reader.ReadAsync(token))
         {
             token.ThrowIfCancellationRequested();
-            var values = new string[reader.FieldCount];
             for (var i = 0; i < reader.FieldCount; i++)
             {
-                values[i] = reader.IsDBNull(i) ? "" : EscapeCsv(Convert.ToString(reader.GetValue(i), CultureInfo.InvariantCulture) ?? "");
+                columns[i].Add(reader.IsDBNull(i) ? null : reader.GetValue(i));
             }
-            await writer.WriteLineAsync(string.Join(",", values));
             rows++;
-            if (rows % batchSize == 0) progress?.Report($"Extracted {rows:N0} rows...");
+            batchRows++;
+            if (batchRows >= batchSize)
+            {
+                await WriteParquetRowGroupAsync(writer, columns, token);
+                batchRows = 0;
+                progress?.Report($"Extracted {rows:N0} rows...");
+            }
+        }
+        if (batchRows > 0)
+        {
+            await WriteParquetRowGroupAsync(writer, columns, token);
         }
         progress?.Report($"Extracted {rows:N0} rows.");
         return rows;
+    }
+
+    private static async Task WriteParquetRowGroupAsync(ParquetWriter writer, IReadOnlyList<ParquetColumnBuffer> columns, CancellationToken token)
+    {
+        using var rowGroup = writer.CreateRowGroup();
+        foreach (var column in columns)
+        {
+            token.ThrowIfCancellationRequested();
+            await column.WriteAsync(rowGroup, token);
+            column.Clear();
+        }
     }
 
     private static void WriteFirstExcelSheetToCsv(string excelPath, string csvPath)
@@ -439,5 +464,121 @@ public sealed class DataEngine
     {
         var v = value.Trim();
         return v is "" or "#N/A" or "#VALUE!" or "#REF!" or "#DIV/0!" or "NULL" or "null" or "N/A";
+    }
+
+    private static List<string> UniqueColumnNames(IEnumerable<string> names)
+    {
+        var used = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        var result = new List<string>();
+        foreach (var raw in names)
+        {
+            var baseName = string.IsNullOrWhiteSpace(raw) ? "column" : raw.Trim();
+            if (!used.TryGetValue(baseName, out var count))
+            {
+                used[baseName] = 1;
+                result.Add(baseName);
+                continue;
+            }
+            count++;
+            used[baseName] = count;
+            result.Add($"{baseName}_{count}");
+        }
+        return result;
+    }
+
+    private abstract class ParquetColumnBuffer
+    {
+        protected ParquetColumnBuffer(DataField field) => Field = field;
+        public DataField Field { get; }
+        public abstract void Add(object? value);
+        public abstract Task WriteAsync(ParquetRowGroupWriter writer, CancellationToken token);
+        public abstract void Clear();
+
+        public static ParquetColumnBuffer Create(string name, Type providerType)
+        {
+            var type = Nullable.GetUnderlyingType(providerType) ?? providerType;
+            if (type == typeof(bool)) return new TypedParquetColumnBuffer<bool>(name, Convert.ToBoolean);
+            if (type == typeof(byte)) return new TypedParquetColumnBuffer<int>(name, value => Convert.ToInt32(value, CultureInfo.InvariantCulture));
+            if (type == typeof(short)) return new TypedParquetColumnBuffer<int>(name, value => Convert.ToInt32(value, CultureInfo.InvariantCulture));
+            if (type == typeof(int)) return new TypedParquetColumnBuffer<int>(name, value => Convert.ToInt32(value, CultureInfo.InvariantCulture));
+            if (type == typeof(long)) return new TypedParquetColumnBuffer<long>(name, value => Convert.ToInt64(value, CultureInfo.InvariantCulture));
+            if (type == typeof(float)) return new TypedParquetColumnBuffer<float>(name, value => Convert.ToSingle(value, CultureInfo.InvariantCulture));
+            if (type == typeof(double)) return new TypedParquetColumnBuffer<double>(name, value => Convert.ToDouble(value, CultureInfo.InvariantCulture));
+            if (type == typeof(decimal)) return new TypedParquetColumnBuffer<decimal>(name, value => Convert.ToDecimal(value, CultureInfo.InvariantCulture));
+            if (type == typeof(DateTime)) return new TypedParquetColumnBuffer<DateTime>(name, value => Convert.ToDateTime(value, CultureInfo.InvariantCulture));
+            if (type == typeof(byte[])) return new BytesParquetColumnBuffer(name);
+            return new StringParquetColumnBuffer(name);
+        }
+    }
+
+    private sealed class TypedParquetColumnBuffer<T> : ParquetColumnBuffer where T : struct
+    {
+        private readonly Func<object, T> _convert;
+        private readonly List<T?> _values = new();
+
+        public TypedParquetColumnBuffer(string name, Func<object, T> convert)
+            : base(new DataField(name, typeof(T), isNullable: true))
+        {
+            _convert = convert;
+        }
+
+        public override void Add(object? value)
+        {
+            _values.Add(value == null ? null : _convert(value));
+        }
+
+        public override async Task WriteAsync(ParquetRowGroupWriter writer, CancellationToken token)
+        {
+            await writer.WriteAsync<T>(Field, _values.ToArray(), cancellationToken: token);
+        }
+
+        public override void Clear() => _values.Clear();
+    }
+
+    private sealed class StringParquetColumnBuffer : ParquetColumnBuffer
+    {
+        private readonly List<string?> _values = new();
+
+        public StringParquetColumnBuffer(string name)
+            : base(new DataField(name, typeof(string), isNullable: true))
+        {
+        }
+
+        public override void Add(object? value)
+        {
+            var text = value == null ? null : Convert.ToString(value, CultureInfo.InvariantCulture);
+            _values.Add(text != null && IsNullMarker(text) ? null : text);
+        }
+
+        public override async Task WriteAsync(ParquetRowGroupWriter writer, CancellationToken token)
+        {
+            token.ThrowIfCancellationRequested();
+            await writer.WriteAsync(Field, _values);
+        }
+
+        public override void Clear() => _values.Clear();
+    }
+
+    private sealed class BytesParquetColumnBuffer : ParquetColumnBuffer
+    {
+        private readonly List<byte[]?> _values = new();
+
+        public BytesParquetColumnBuffer(string name)
+            : base(new DataField(name, typeof(byte[]), isNullable: true))
+        {
+        }
+
+        public override void Add(object? value)
+        {
+            _values.Add(value as byte[]);
+        }
+
+        public override async Task WriteAsync(ParquetRowGroupWriter writer, CancellationToken token)
+        {
+            token.ThrowIfCancellationRequested();
+            await writer.WriteAsync(Field, _values);
+        }
+
+        public override void Clear() => _values.Clear();
     }
 }
