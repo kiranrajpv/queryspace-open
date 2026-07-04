@@ -1,7 +1,8 @@
 <Window x:Class="QuerySpace.QualityDialog"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Data quality" Height="520" Width="760" WindowStartupLocation="CenterOwner">
+        Title="Data quality" Height="520" Width="760" WindowStartupLocation="CenterOwner"
+        Background="#0B1020" Foreground="#E5E7EB">
     <DockPanel Margin="12">
         <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,12">
             <TextBlock x:Name="SummaryText" FontSize="18"/>
