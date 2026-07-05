@@ -3,6 +3,7 @@ using System.Data;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Media;
 
 namespace QuerySpace;
 
@@ -412,7 +413,7 @@ public partial class MainWindow : Window
         var extractQueries = _workspace.SnapshotExtractQueries();
         foreach (var dataset in datasets.OrderBy(d => d.Name))
         {
-            DatasetsTree.Items.Add(new TreeViewItem { Header = TreeHeader("\uEFC7", $"{dataset.Name} ({dataset.RowCount:N0} rows)"), Tag = dataset });
+            DatasetsTree.Items.Add(new TreeViewItem { Header = TreeHeader(StorageIcon(), $"{dataset.Name} ({dataset.RowCount:N0} rows)"), Tag = dataset });
         }
         ScriptsTree.Items.Clear();
         foreach (var path in _workspace.ListScripts())
@@ -446,21 +447,80 @@ public partial class MainWindow : Window
 
     private static StackPanel TreeHeader(string glyph, string text)
     {
+        return TreeHeader(GlyphIcon(glyph), text);
+    }
+
+    private static StackPanel TreeHeader(UIElement icon, string text)
+    {
         var header = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-        header.Children.Add(new TextBlock
-        {
-            Text = glyph,
-            FontFamily = new System.Windows.Media.FontFamily("Segoe MDL2 Assets"),
-            FontSize = 14,
-            Margin = new Thickness(0, 0, 6, 0),
-            VerticalAlignment = VerticalAlignment.Center
-        });
+        header.Children.Add(icon);
         header.Children.Add(new TextBlock
         {
             Text = text,
             VerticalAlignment = VerticalAlignment.Center
         });
         return header;
+    }
+
+    private static TextBlock GlyphIcon(string glyph)
+    {
+        return new TextBlock
+        {
+            Text = glyph,
+            FontFamily = new FontFamily("Segoe MDL2 Assets"),
+            FontSize = 14,
+            Margin = new Thickness(0, 0, 6, 0),
+            VerticalAlignment = VerticalAlignment.Center
+        };
+    }
+
+    private static Grid StorageIcon()
+    {
+        var teal = new SolidColorBrush(Color.FromRgb(0, 120, 140));
+        var lightTeal = new SolidColorBrush(Color.FromRgb(111, 207, 222));
+        var darkTeal = new SolidColorBrush(Color.FromRgb(0, 84, 98));
+        var icon = new Grid
+        {
+            Width = 16,
+            Height = 16,
+            Margin = new Thickness(0, 0, 6, 0),
+            VerticalAlignment = VerticalAlignment.Center
+        };
+
+        icon.Children.Add(new System.Windows.Shapes.Rectangle
+        {
+            Width = 14,
+            Height = 9,
+            Fill = teal,
+            Stroke = darkTeal,
+            StrokeThickness = 1,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 3, 0, 1)
+        });
+        icon.Children.Add(new System.Windows.Shapes.Ellipse
+        {
+            Width = 14,
+            Height = 6,
+            Fill = lightTeal,
+            Stroke = darkTeal,
+            StrokeThickness = 1,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Top,
+            Margin = new Thickness(0, 1, 0, 0)
+        });
+        icon.Children.Add(new System.Windows.Shapes.Ellipse
+        {
+            Width = 14,
+            Height = 6,
+            Fill = teal,
+            Stroke = darkTeal,
+            StrokeThickness = 1,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Bottom,
+            Margin = new Thickness(0, 0, 0, 1)
+        });
+        return icon;
     }
 
     private static IEnumerable<string> ListTemplateScripts()
