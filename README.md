@@ -1,10 +1,10 @@
-# QuerySpace C# Edition
+# QuerySpace
 
-QuerySpace C# Edition is a native Windows rebuild of the Python/Qt QuerySpace prototype.
+QuerySpace is a native Windows desktop application for working with local Parquet datasets and database extracts.
 
-The purpose of this version is to keep the same user workflow while making packaging, code-signing, antivirus review, and company desktop deployment more conservative.
+It provides a local SQL workspace for importing CSV, Excel, and Parquet files, extracting data from supported databases, storing extracts as Parquet, querying datasets with DuckDB SQL, exporting results, and running data-quality and SAP material transformation analysis.
 
-## What is included in this first C# repo
+## Features
 
 - Native WPF desktop app.
 - Workspace folder selection.
@@ -27,7 +27,7 @@ The purpose of this version is to keep the same user workflow while making packa
 - ODBC DSN connection with an editable dropdown populated from Windows ODBC Administrator DSNs.
 - Direct SQL Server connection through Microsoft SqlClient.
 - Snowflake token connection through Snowflake .NET connector.
-- SAP HANA should be used through ODBC DSN in this C# edition unless your company separately approves SAP's ADO.NET/HANA client redistribution.
+- SAP HANA should be used through ODBC DSN unless your company separately approves SAP's ADO.NET/HANA client redistribution.
 - Passwords/tokens stored with Windows DPAPI for the current Windows user.
 - Base query extraction streams directly into Zstandard-compressed Parquet row groups with progress feedback and cancellation.
 - Extraction defaults to 250,000-row batches/row groups for better large-extract throughput and compression.
@@ -47,7 +47,7 @@ installer\             Inno Setup installer script
 
 ## Technology, tools, libraries, and license inventory
 
-This section documents the technologies used by QuerySpace C# Edition, why they are used, and the license information available from project files/NuGet package metadata on this build machine.
+This section documents the technologies used by QuerySpace, why they are used, and the license information available from project files/NuGet package metadata on this build machine.
 
 Important: this table is an engineering inventory, not legal advice. Before broad internal rollout or any external/public release, generate a formal third-party notice/SBOM from the exact release build output and have company legal/compliance review it.
 
@@ -57,7 +57,7 @@ Package-provided license and notice text discovered in the local NuGet package c
 
 | Technology / tool | Version / source | License / owner | Why QuerySpace uses it |
 |---|---:|---|---|
-| C# | .NET SDK toolchain | Microsoft / .NET Foundation | Main implementation language for the Windows desktop rebuild. |
+| C# | .NET SDK toolchain | Microsoft / .NET Foundation | Main implementation language for the Windows desktop application. |
 | .NET | 9.0 target, `net9.0-windows` | MIT, Microsoft / .NET Foundation | Application runtime, base class libraries, cryptography APIs, WPF support, packaging/publish toolchain. |
 | WPF | Included with .NET desktop workload | MIT, Microsoft / .NET Foundation | Native Windows UI: windows, dialogs, tree views, editor text boxes, result grid, status bar, progress bar. |
 | Windows DWM API | Windows OS API | Microsoft Windows platform API | Colors the native Windows title bar Parker blue with white title text. |
@@ -74,13 +74,13 @@ These are referenced directly in [QuerySpace.csproj](src/QuerySpace/QuerySpace.c
 
 | Package | Version | License from NuGet metadata | Why QuerySpace uses it |
 |---|---:|---|---|
-| `CommunityToolkit.Mvvm` | 8.4.2 | MIT | MVVM utility package available for future UI binding/view-model work. Current UI is mostly code-behind, so this can be removed later if it remains unused. |
-| `CsvHelper` | 33.1.0 | MS-PL OR Apache-2.0 | CSV handling support if/when manual CSV parsing/export logic is expanded. Current import/export path primarily uses DuckDB. |
+| `CommunityToolkit.Mvvm` | 8.4.2 | MIT | MVVM utility package available for UI binding/view-model work. |
+| `CsvHelper` | 33.1.0 | MS-PL OR Apache-2.0 | CSV handling support for import/export workflows. |
 | `DuckDB.NET.Data.Full` | 1.5.3 | MIT | Embedded DuckDB ADO.NET provider plus bundled native DuckDB runtime. Used for local SQL over Parquet, CSV-to-Parquet import, result previews, and CSV export. |
 | `ExcelDataReader` | 3.9.0 | MIT | Reads `.xls` and `.xlsx` files before converting them to workspace Parquet datasets. |
-| `ExcelDataReader.DataSet` | 3.9.0 | MIT | ExcelDataReader helper package available for dataset-style Excel handling. Current import uses the streaming reader API. |
+| `ExcelDataReader.DataSet` | 3.9.0 | MIT | ExcelDataReader helper package for dataset-style Excel handling. |
 | `Microsoft.Data.SqlClient` | 7.0.2 | MIT | Direct Microsoft SQL Server connection support without requiring ODBC DSN. |
-| `Microsoft.ML` | 5.0.0 | MIT | Reserved for local CPU-only data-quality ML checks. Current data-quality implementation is statistical/rule based. |
+| `Microsoft.ML` | 5.0.0 | MIT | Supports local CPU-only data-quality analysis capabilities. |
 | `Parquet.Net` | 6.0.3 | MIT | Writes database extraction results directly into Parquet row groups with Zstandard compression. |
 | `Snowflake.Data` | 5.7.0 | Apache-2.0 | Direct Snowflake connection/extraction support using user token/auth configuration. |
 | `System.Data.Odbc` | 9.0.7 | .NET runtime package; license metadata not declared in local `.nuspec` | ODBC DSN connectivity for SQL Server, SAP HANA, and other user-configured ODBC data sources. |
@@ -365,7 +365,6 @@ left join mdg_material_postload m
 
 ## Important notes
 
-- This repo intentionally does not use Python, PyInstaller, Qt/PySide, Tauri, Node.js, or FastAPI.
 - There is no local HTTP backend, so there is no localhost API for other local processes to call.
 - SAP HANA direct ADO.NET support is not bundled. Use SAP HANA through ODBC DSN unless SAP licensing/deployment is separately approved.
 - For very large extracts, QuerySpace writes database rows directly into Parquet row groups under a `.partial` file and renames it only after the extract succeeds. Cancelled or failed extracts delete the partial file.
