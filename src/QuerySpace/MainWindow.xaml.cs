@@ -423,7 +423,7 @@ public partial class MainWindow : Window
         TemplatesTree.Items.Clear();
         foreach (var path in ListTemplateScripts())
         {
-            TemplatesTree.Items.Add(new TreeViewItem { Header = TreeHeader("\uE8B0", Path.GetFileNameWithoutExtension(path)), Tag = path });
+            TemplatesTree.Items.Add(new TreeViewItem { Header = TreeHeader(RulesTemplateIcon(), Path.GetFileNameWithoutExtension(path)), Tag = path });
         }
         ConnectionsTree.Items.Clear();
         foreach (var connection in connections.OrderBy(c => c.Name))
@@ -518,6 +518,72 @@ public partial class MainWindow : Window
             Margin = new Thickness(0, 0, 0, 2)
         });
         return icon;
+    }
+
+    private static Grid RulesTemplateIcon()
+    {
+        var purple = new SolidColorBrush(Color.FromRgb(116, 77, 169));
+        var orange = new SolidColorBrush(Color.FromRgb(238, 130, 36));
+        var green = new SolidColorBrush(Color.FromRgb(35, 150, 95));
+        var blue = new SolidColorBrush(Color.FromRgb(43, 119, 210));
+        var lightPurple = new SolidColorBrush(Color.FromRgb(241, 235, 250));
+        var lineBrush = new SolidColorBrush(Color.FromRgb(88, 88, 88));
+        var icon = new Grid
+        {
+            Width = 16,
+            Height = 16,
+            Margin = new Thickness(0, 0, 6, 0),
+            VerticalAlignment = VerticalAlignment.Center
+        };
+
+        icon.Children.Add(new System.Windows.Shapes.Rectangle
+        {
+            Width = 14,
+            Height = 14,
+            RadiusX = 2,
+            RadiusY = 2,
+            Fill = lightPurple,
+            Stroke = purple,
+            StrokeThickness = 1,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center
+        });
+
+        AddRuleDot(icon, orange, 4, 4);
+        AddRuleDot(icon, green, 4, 8);
+        AddRuleDot(icon, blue, 4, 12);
+        AddRuleLine(icon, lineBrush, 7, 4);
+        AddRuleLine(icon, lineBrush, 7, 8);
+        AddRuleLine(icon, lineBrush, 7, 12);
+        return icon;
+    }
+
+    private static void AddRuleDot(Grid icon, Brush fill, double left, double top)
+    {
+        icon.Children.Add(new System.Windows.Shapes.Ellipse
+        {
+            Width = 3,
+            Height = 3,
+            Fill = fill,
+            HorizontalAlignment = HorizontalAlignment.Left,
+            VerticalAlignment = VerticalAlignment.Top,
+            Margin = new Thickness(left, top, 0, 0)
+        });
+    }
+
+    private static void AddRuleLine(Grid icon, Brush fill, double left, double top)
+    {
+        icon.Children.Add(new System.Windows.Shapes.Rectangle
+        {
+            Width = 5,
+            Height = 1.2,
+            RadiusX = 0.6,
+            RadiusY = 0.6,
+            Fill = fill,
+            HorizontalAlignment = HorizontalAlignment.Left,
+            VerticalAlignment = VerticalAlignment.Top,
+            Margin = new Thickness(left, top + 0.8, 0, 0)
+        });
     }
 
     private static Grid StorageIcon()
