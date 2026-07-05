@@ -10,7 +10,6 @@
                 <Button Content="Import CSV/Excel/Parquet" Click="Import_Click" Style="{StaticResource ToolbarButtonStyle}" MinWidth="180"/>
                 <Button Content="Add Connection" Click="AddConnection_Click" Style="{StaticResource ToolbarButtonStyle}" MinWidth="130"/>
                 <Button Content="Extract Base Query" Click="Extract_Click" Style="{StaticResource ToolbarButtonStyle}" MinWidth="150"/>
-                <Button Content="Compare Materials" Click="CompareMaterials_Click" Style="{StaticResource ToolbarButtonStyle}" MinWidth="150"/>
                 <Button x:Name="StopExtractButton" Content="Stop Extraction" Visibility="Collapsed" Click="StopExtraction_Click" Style="{StaticResource ToolbarButtonStyle}" MinWidth="130"/>
                 <Separator Width="12" Opacity="0"/>
                 <Button Content="Save SQL" Click="SaveSql_Click" Style="{StaticResource ToolbarButtonStyle}"/>
