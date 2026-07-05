@@ -4,10 +4,51 @@
              StartupUri="MainWindow.xaml">
     <Application.Resources>
         <Thickness x:Key="ControlGap">4</Thickness>
-        <Style x:Key="ToolbarButtonStyle" TargetType="Button">
+        <Style x:Key="RoundedButtonBaseStyle" TargetType="Button">
+            <Setter Property="Background" Value="#F7F9FC"/>
+            <Setter Property="BorderBrush" Value="#C8D1DC"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Foreground" Value="{DynamicResource {x:Static SystemColors.ControlTextBrushKey}}"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="ButtonChrome"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="8"
+                                SnapsToDevicePixels="True">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"
+                                              Margin="{TemplateBinding Padding}"
+                                              RecognizesAccessKey="True"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="ButtonChrome" Property="Background" Value="#EEF5FF"/>
+                                <Setter TargetName="ButtonChrome" Property="BorderBrush" Value="#8CB8EA"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="ButtonChrome" Property="Background" Value="#DCEBFF"/>
+                                <Setter TargetName="ButtonChrome" Property="BorderBrush" Value="#5A99D8"/>
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="ButtonChrome" Property="BorderBrush" Value="#2B77D2"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.55"/>
+                                <Setter Property="Cursor" Value="Arrow"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="ToolbarButtonStyle" TargetType="Button" BasedOn="{StaticResource RoundedButtonBaseStyle}">
             <Setter Property="Margin" Value="4"/>
-            <Setter Property="Padding" Value="12,6"/>
-            <Setter Property="MinHeight" Value="32"/>
+            <Setter Property="Padding" Value="10,6"/>
+            <Setter Property="MinHeight" Value="36"/>
             <Setter Property="MinWidth" Value="96"/>
         </Style>
         <Style x:Key="PrimaryToolbarButtonStyle" TargetType="Button" BasedOn="{StaticResource ToolbarButtonStyle}">
@@ -31,7 +72,7 @@
             <Setter Property="Margin" Value="0,6,12,9"/>
             <Setter Property="VerticalAlignment" Value="Center"/>
         </Style>
-        <Style x:Key="DialogActionButtonStyle" TargetType="Button">
+        <Style x:Key="DialogActionButtonStyle" TargetType="Button" BasedOn="{StaticResource RoundedButtonBaseStyle}">
             <Setter Property="Margin" Value="8,0,0,0"/>
             <Setter Property="Padding" Value="12,6"/>
             <Setter Property="MinWidth" Value="96"/>
