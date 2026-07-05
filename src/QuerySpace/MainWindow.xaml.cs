@@ -412,25 +412,25 @@ public partial class MainWindow : Window
         var extractQueries = _workspace.SnapshotExtractQueries();
         foreach (var dataset in datasets.OrderBy(d => d.Name))
         {
-            DatasetsTree.Items.Add(new TreeViewItem { Header = $"{dataset.Name} ({dataset.RowCount:N0} rows)", Tag = dataset });
+            DatasetsTree.Items.Add(new TreeViewItem { Header = TreeHeader("\uEFC7", $"{dataset.Name} ({dataset.RowCount:N0} rows)"), Tag = dataset });
         }
         ScriptsTree.Items.Clear();
         foreach (var path in _workspace.ListScripts())
         {
-            ScriptsTree.Items.Add(new TreeViewItem { Header = Path.GetFileName(path), Tag = path });
+            ScriptsTree.Items.Add(new TreeViewItem { Header = TreeHeader("\uE8A5", Path.GetFileName(path)), Tag = path });
         }
         TemplatesTree.Items.Clear();
         foreach (var path in ListTemplateScripts())
         {
-            TemplatesTree.Items.Add(new TreeViewItem { Header = Path.GetFileNameWithoutExtension(path), Tag = path });
+            TemplatesTree.Items.Add(new TreeViewItem { Header = TreeHeader("\uE8B0", Path.GetFileNameWithoutExtension(path)), Tag = path });
         }
         ConnectionsTree.Items.Clear();
         foreach (var connection in connections.OrderBy(c => c.Name))
         {
-            var item = new TreeViewItem { Header = $"{connection.Name} [{connection.Kind}]", Tag = connection, IsExpanded = true };
+            var item = new TreeViewItem { Header = TreeHeader("\uE839", $"{connection.Name} [{connection.Kind}]"), Tag = connection, IsExpanded = true };
             foreach (var query in extractQueries.Where(q => q.ConnectionId == connection.Id).OrderBy(q => q.Name))
             {
-                item.Items.Add(new TreeViewItem { Header = $"{query.Name}.sql ({query.RowCount:N0} rows)", Tag = query });
+                item.Items.Add(new TreeViewItem { Header = TreeHeader("\uE8A5", $"{query.Name}.sql ({query.RowCount:N0} rows)"), Tag = query });
             }
             ConnectionsTree.Items.Add(item);
         }
@@ -443,6 +443,25 @@ public partial class MainWindow : Window
     }
 
     private static object? SelectedTreeValue(TreeView tree) => (tree.SelectedItem as TreeViewItem)?.Tag;
+
+    private static StackPanel TreeHeader(string glyph, string text)
+    {
+        var header = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+        header.Children.Add(new TextBlock
+        {
+            Text = glyph,
+            FontFamily = new System.Windows.Media.FontFamily("Segoe MDL2 Assets"),
+            FontSize = 14,
+            Margin = new Thickness(0, 0, 6, 0),
+            VerticalAlignment = VerticalAlignment.Center
+        });
+        header.Children.Add(new TextBlock
+        {
+            Text = text,
+            VerticalAlignment = VerticalAlignment.Center
+        });
+        return header;
+    }
 
     private static IEnumerable<string> ListTemplateScripts()
     {
