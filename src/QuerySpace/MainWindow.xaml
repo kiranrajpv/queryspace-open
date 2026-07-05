@@ -39,7 +39,13 @@
                 <ColumnDefinition Width="*" MinWidth="480"/>
             </Grid.ColumnDefinitions>
             <TabControl x:Name="ExplorerTabs" Grid.Column="0">
-                <TabItem Header="Local Datasets">
+                <TabItem>
+                    <TabItem.Header>
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBlock Text="&#xEFC7;" FontFamily="Segoe MDL2 Assets" FontSize="14" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                            <TextBlock Text="Local Datasets" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </TabItem.Header>
                     <TreeView x:Name="DatasetsTree" MouseDoubleClick="DatasetsTree_DoubleClick">
                         <TreeView.ContextMenu>
                             <ContextMenu>
@@ -50,7 +56,13 @@
                         </TreeView.ContextMenu>
                     </TreeView>
                 </TabItem>
-                <TabItem Header="SQL Scripts">
+                <TabItem>
+                    <TabItem.Header>
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBlock Text="&#xE8A5;" FontFamily="Segoe MDL2 Assets" FontSize="14" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                            <TextBlock Text="SQL Scripts" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </TabItem.Header>
                     <TreeView x:Name="ScriptsTree" MouseDoubleClick="ScriptsTree_DoubleClick">
                         <TreeView.ContextMenu>
                             <ContextMenu>
@@ -60,10 +72,22 @@
                         </TreeView.ContextMenu>
                     </TreeView>
                 </TabItem>
-                <TabItem Header="Templates">
+                <TabItem>
+                    <TabItem.Header>
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBlock Text="&#xE8B0;" FontFamily="Segoe MDL2 Assets" FontSize="14" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                            <TextBlock Text="Templates" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </TabItem.Header>
                     <TreeView x:Name="TemplatesTree" MouseDoubleClick="TemplatesTree_DoubleClick"/>
                 </TabItem>
-                <TabItem Header="Connections">
+                <TabItem>
+                    <TabItem.Header>
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBlock Text="&#xE839;" FontFamily="Segoe MDL2 Assets" FontSize="14" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                            <TextBlock Text="Connections" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </TabItem.Header>
                     <TreeView x:Name="ConnectionsTree" MouseDoubleClick="ConnectionsTree_DoubleClick">
                         <TreeView.ContextMenu>
                             <ContextMenu>
