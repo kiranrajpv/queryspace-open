@@ -435,15 +435,16 @@ public partial class MainWindow : Window
         var window = new Window
         {
             Title = title,
-            Width = 420,
-            Height = 185,
+            Width = 440,
+            MinHeight = 220,
+            SizeToContent = SizeToContent.Height,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
             ResizeMode = ResizeMode.NoResize
         };
         WindowTitleBar.Apply(window);
-        var panel = new StackPanel { Margin = new Thickness(12) };
-        var input = new TextBox { Text = defaultValue, Margin = new Thickness(0, 6, 0, 10) };
-        var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 8, 0, 0) };
+        var panel = new StackPanel { Margin = new Thickness(16) };
+        var input = new TextBox { Text = defaultValue, Margin = new Thickness(0, 6, 0, 14) };
+        var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 12, 0, 6) };
         var ok = new Button { Content = "OK", IsDefault = true, MinWidth = 96, MinHeight = 32, Padding = new Thickness(12, 6, 12, 6) };
         var cancel = new Button { Content = "Cancel", IsCancel = true, MinWidth = 96, MinHeight = 32, Padding = new Thickness(12, 6, 12, 6), Margin = new Thickness(8, 0, 0, 0) };
         ok.Click += (_, _) => window.DialogResult = true;
@@ -468,20 +469,21 @@ public partial class MainWindow : Window
         var window = new Window
         {
             Title = "Export Result",
-            Width = 360,
-            Height = 190,
+            Width = 430,
+            MinHeight = 260,
+            SizeToContent = SizeToContent.Height,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
             ResizeMode = ResizeMode.NoResize,
             Owner = this
         };
         WindowTitleBar.Apply(window);
-        var panel = new StackPanel { Margin = new Thickness(12) };
+        var panel = new StackPanel { Margin = new Thickness(16) };
         var combo = new ComboBox { MinHeight = 32, Margin = new Thickness(0, 6, 0, 12) };
         combo.Items.Add("CSV");
         combo.Items.Add("EXCEL");
         combo.Items.Add("PARQUET");
         combo.SelectedIndex = 0;
-        var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 8, 0, 0) };
+        var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 14, 0, 6) };
         var ok = new Button { Content = "OK", IsDefault = true, MinWidth = 96, MinHeight = 32, Padding = new Thickness(12, 6, 12, 6) };
         var cancel = new Button { Content = "Cancel", IsCancel = true, MinWidth = 96, MinHeight = 32, Padding = new Thickness(12, 6, 12, 6), Margin = new Thickness(8, 0, 0, 0) };
         ok.Click += (_, _) => window.DialogResult = true;
