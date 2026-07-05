@@ -251,6 +251,76 @@ public sealed class DataEngine
         };
     }
 
+    public async Task<MaterialCompareResult> CompareMandatoryMaterialsAsync(MaterialCompareRequest request, CancellationToken token)
+    {
+        if (request.KeyMappings.Count == 0) throw new InvalidOperationException("Select at least one key column mapping.");
+        if (request.KeyMappings.Any(k => string.IsNullOrWhiteSpace(k.ReferenceColumn) || string.IsNullOrWhiteSpace(k.TargetColumn)))
+        {
+            throw new InvalidOperationException("Every key mapping must have both a reference and target column.");
+        }
+
+        return await Task.Run(() =>
+        {
+            token.ThrowIfCancellationRequested();
+            using var connection = NewOpenDuckConnection();
+            RegisterDatasetViews(connection);
+
+            var referenceView = QuoteIdentifier(Workspace.SafeName(request.ReferenceDataset.Name));
+            var targetView = QuoteIdentifier(Workspace.SafeName(request.TargetDataset.Name));
+            var joinPredicate = string.Join(" and ", request.KeyMappings.Select(k =>
+                $"{NormalizeSql("r", k.ReferenceColumn, request.NormalizeKeys)} = {NormalizeSql("t", k.TargetColumn, request.NormalizeKeys)}"));
+            var missingSql = $"select r.* from {referenceView} r where not exists (select 1 from {targetView} t where {joinPredicate})";
+            var allReferenceWithFlagSql = $"select r.*, case when exists (select 1 from {targetView} t where {joinPredicate}) then 0 else 1 end as __queryspace_missing from {referenceView} r";
+
+            var referenceRows = ExecuteScalarLong(connection, $"select count(*) from {referenceView}");
+            var missingRowsCount = ExecuteScalarLong(connection, $"select count(*) from ({missingSql}) missing");
+            var foundRows = Math.Max(0, referenceRows - missingRowsCount);
+            var missingTable = ExecuteTable(connection, $"select * from ({missingSql}) missing limit {Math.Max(1, request.PreviewRows)}");
+            var coverage = BuildCoverageTable(referenceRows, foundRows, missingRowsCount);
+            var columnImpact = BuildColumnImpactTable(connection, allReferenceWithFlagSql, request.ExplainColumns, missingRowsCount, token);
+            var reasonSummary = BuildReasonSummaryTable(columnImpact, request, missingRowsCount, referenceRows);
+
+            DatasetInfo? savedDataset = null;
+            if (request.SaveMissingAsDataset)
+            {
+                var outputName = _workspace.EnsureDatasetNameAvailable(
+                    string.IsNullOrWhiteSpace(request.OutputDatasetName)
+                        ? $"missing_{request.ReferenceDataset.Name}_vs_{request.TargetDataset.Name}"
+                        : request.OutputDatasetName);
+                var finalPath = Path.Combine(_workspace.DatasetsFolder, outputName + ".parquet");
+                var partialPath = finalPath + ".partial";
+                if (File.Exists(finalPath)) throw new InvalidOperationException($"Parquet file already exists: {finalPath}");
+                if (File.Exists(partialPath)) File.Delete(partialPath);
+                try
+                {
+                    using var command = connection.CreateCommand();
+                    command.CommandText = $"copy ({missingSql}) to '{EscapePath(partialPath)}' (format parquet, compression zstd)";
+                    command.ExecuteNonQuery();
+                    File.Move(partialPath, finalPath);
+                    savedDataset = _workspace.AddDataset(outputName, finalPath, null, missingRowsCount);
+                }
+                catch
+                {
+                    if (File.Exists(partialPath)) File.Delete(partialPath);
+                    throw;
+                }
+            }
+
+            return new MaterialCompareResult
+            {
+                MissingRows = missingTable,
+                Coverage = coverage,
+                ReasonSummary = reasonSummary,
+                ColumnImpact = columnImpact,
+                SqlUsed = missingSql + ";",
+                SavedDataset = savedDataset,
+                ReferenceRows = referenceRows,
+                FoundRows = foundRows,
+                MissingRowsCount = missingRowsCount
+            };
+        }, token);
+    }
+
     private async Task CopyCsvToParquetAsync(string csvPath, string parquetPath, CancellationToken token)
     {
         await Task.Run(() =>
@@ -493,6 +563,104 @@ public sealed class DataEngine
         return count;
     }
 
+    private static DataTable BuildCoverageTable(long referenceRows, long foundRows, long missingRows)
+    {
+        var table = new DataTable();
+        table.Columns.Add("Metric", typeof(string));
+        table.Columns.Add("Value", typeof(string));
+        table.Rows.Add("Reference required rows", referenceRows.ToString("N0", CultureInfo.InvariantCulture));
+        table.Rows.Add("Found in target", foundRows.ToString("N0", CultureInfo.InvariantCulture));
+        table.Rows.Add("Missing from target", missingRows.ToString("N0", CultureInfo.InvariantCulture));
+        var coverage = referenceRows == 0 ? 100 : foundRows * 100.0 / referenceRows;
+        table.Rows.Add("Coverage", coverage.ToString("N2", CultureInfo.InvariantCulture) + "%");
+        return table;
+    }
+
+    private static DataTable BuildColumnImpactTable(DuckDBConnection connection, string allReferenceWithFlagSql, IReadOnlyList<string> explainColumns, long totalMissing, CancellationToken token)
+    {
+        var table = new DataTable();
+        table.Columns.Add("Column", typeof(string));
+        table.Columns.Add("Top value among missing", typeof(string));
+        table.Columns.Add("Missing rows", typeof(long));
+        table.Columns.Add("Missing share", typeof(string));
+        table.Columns.Add("Value missing rate", typeof(string));
+        table.Columns.Add("Impact", typeof(string));
+        table.Columns.Add("Reason signal", typeof(string));
+
+        if (totalMissing <= 0) return table;
+
+        foreach (var column in explainColumns.Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            token.ThrowIfCancellationRequested();
+            var col = QuoteIdentifier(column);
+            var sql =
+                "with flagged as (" + allReferenceWithFlagSql + "), " +
+                $"grouped as (select coalesce(cast({col} as varchar), '<NULL>') as value, count(*) as total_rows, sum(__queryspace_missing) as missing_rows from flagged group by 1) " +
+                "select value, total_rows, missing_rows, missing_rows * 100.0 / nullif(total_rows, 0) as value_missing_rate, missing_rows * 100.0 / nullif((select sum(missing_rows) from grouped), 0) as missing_share " +
+                "from grouped where missing_rows > 0 order by missing_rows desc, value_missing_rate desc limit 1";
+            var grouped = ExecuteTable(connection, sql);
+            if (grouped.Rows.Count == 0) continue;
+            var row = grouped.Rows[0];
+            var value = row["value"]?.ToString() ?? "";
+            var missingRows = Convert.ToInt64(row["missing_rows"], CultureInfo.InvariantCulture);
+            var valueMissingRate = Convert.ToDouble(row["value_missing_rate"], CultureInfo.InvariantCulture);
+            var missingShare = Convert.ToDouble(row["missing_share"], CultureInfo.InvariantCulture);
+            var impactScore = Math.Min(100, missingShare * 0.65 + valueMissingRate * 0.35);
+            var impact = impactScore >= 60 ? "High" : impactScore >= 30 ? "Medium" : "Low";
+            var reason = $"{missingShare:N1}% of missing rows have {column} = {value}; {valueMissingRate:N1}% of reference rows with this value are missing.";
+            table.Rows.Add(column, value, missingRows, missingShare.ToString("N1", CultureInfo.InvariantCulture) + "%", valueMissingRate.ToString("N1", CultureInfo.InvariantCulture) + "%", impact, reason);
+        }
+
+        var view = table.DefaultView;
+        view.Sort = "Missing rows DESC";
+        return view.ToTable();
+    }
+
+    private static DataTable BuildReasonSummaryTable(DataTable columnImpact, MaterialCompareRequest request, long missingRows, long referenceRows)
+    {
+        var table = new DataTable();
+        table.Columns.Add("Rank", typeof(int));
+        table.Columns.Add("Possible reason", typeof(string));
+        table.Columns.Add("Evidence", typeof(string));
+
+        if (missingRows == 0)
+        {
+            table.Rows.Add(1, "No mandatory materials are missing.", "Every reference row matched the target dataset using the selected key mapping.");
+            return table;
+        }
+
+        table.Rows.Add(1, "Target does not contain every mandatory reference key.", $"{missingRows:N0} of {referenceRows:N0} reference rows are missing from target {request.TargetDataset.Name}.");
+        var rank = 2;
+        foreach (DataRow impact in columnImpact.Rows.Cast<DataRow>().Take(5))
+        {
+            table.Rows.Add(rank++, $"Missing rows are concentrated around {impact["Column"]} = {impact["Top value among missing"]}.", impact["Reason signal"]?.ToString() ?? "");
+        }
+
+        if (request.ContextDataset != null)
+        {
+            table.Rows.Add(rank, "A context/previous dataset was selected for investigation.", $"Use {request.ContextDataset.Name} to check whether these materials existed in a prior extract or source snapshot.");
+        }
+
+        return table;
+    }
+
+    private static DataTable ExecuteTable(DuckDBConnection connection, string sql)
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText = sql;
+        using var reader = command.ExecuteReader();
+        var table = new DataTable();
+        table.Load(reader);
+        return table;
+    }
+
+    private static long ExecuteScalarLong(DuckDBConnection connection, string sql)
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText = sql;
+        return Convert.ToInt64(command.ExecuteScalar(), CultureInfo.InvariantCulture);
+    }
+
     private static IEnumerable<string> SplitStatements(string sql)
     {
         var current = new StringBuilder();
@@ -519,6 +687,14 @@ public sealed class DataEngine
     }
 
     private static string TrimTrailingSemicolon(string sql) => sql.Trim().TrimEnd(';');
+    private static string QuoteIdentifier(string identifier) => "\"" + identifier.Replace("\"", "\"\"") + "\"";
+    private static string NormalizeSql(string alias, string column, bool normalize)
+    {
+        var expr = $"{alias}.{QuoteIdentifier(column)}";
+        if (!normalize) return expr;
+        return $"upper(ltrim(trim(cast({expr} as varchar)), '0'))";
+    }
+
     private static string EscapePath(string path) => path.Replace("\\", "\\\\").Replace("'", "''");
     private static string EscapeCsv(string value) => value.Contains('"') || value.Contains(',') || value.Contains('\n') || value.Contains('\r')
         ? "\"" + value.Replace("\"", "\"\"") + "\""

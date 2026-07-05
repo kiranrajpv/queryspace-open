@@ -1,0 +1,99 @@
+<Window x:Class="QuerySpace.CompareMaterialsDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Compare mandatory materials" Height="650" Width="760" MinHeight="560" MinWidth="700"
+        WindowStartupLocation="CenterOwner">
+    <DockPanel Margin="14">
+        <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+            <Button Content="Compare" IsDefault="True" Style="{StaticResource DialogActionButtonStyle}" Click="Compare_Click"/>
+            <Button Content="Cancel" IsCancel="True" Style="{StaticResource DialogActionButtonStyle}"/>
+        </StackPanel>
+
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <StackPanel>
+                <TextBlock Text="Validate that every material/key in the reference dataset exists in the target dataset."
+                           TextWrapping="Wrap" Margin="0,0,0,12"/>
+
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="170"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Grid.Row="0" Grid.Column="0" Text="Reference dataset:" Style="{StaticResource FormLabelStyle}"/>
+                    <ComboBox Grid.Row="0" Grid.Column="1" x:Name="ReferenceDatasetCombo" DisplayMemberPath="Name" Style="{StaticResource FormComboBoxStyle}" SelectionChanged="DatasetCombo_SelectionChanged"/>
+
+                    <TextBlock Grid.Row="1" Grid.Column="0" Text="Target dataset:" Style="{StaticResource FormLabelStyle}"/>
+                    <ComboBox Grid.Row="1" Grid.Column="1" x:Name="TargetDatasetCombo" DisplayMemberPath="Name" Style="{StaticResource FormComboBoxStyle}" SelectionChanged="DatasetCombo_SelectionChanged"/>
+
+                    <TextBlock Grid.Row="2" Grid.Column="0" Text="Context/previous dataset:" Style="{StaticResource FormLabelStyle}"/>
+                    <ComboBox Grid.Row="2" Grid.Column="1" x:Name="ContextDatasetCombo" DisplayMemberPath="Name" Style="{StaticResource FormComboBoxStyle}"/>
+                </Grid>
+
+                <GroupBox Header="Key mapping" Margin="0,8,0,10" Padding="10">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Grid.Row="0" Grid.Column="0" Text="Reference key column" FontWeight="SemiBold" Margin="0,0,8,4"/>
+                        <TextBlock Grid.Row="0" Grid.Column="1" Text="Target key column" FontWeight="SemiBold" Margin="8,0,0,4"/>
+
+                        <ComboBox Grid.Row="1" Grid.Column="0" x:Name="ReferenceKey1Combo" Margin="0,3,8,9" MinHeight="28"/>
+                        <ComboBox Grid.Row="1" Grid.Column="1" x:Name="TargetKey1Combo" Margin="8,3,0,9" MinHeight="28"/>
+
+                        <ComboBox Grid.Row="2" Grid.Column="0" x:Name="ReferenceKey2Combo" Margin="0,3,8,0" MinHeight="28"/>
+                        <ComboBox Grid.Row="2" Grid.Column="1" x:Name="TargetKey2Combo" Margin="8,3,0,0" MinHeight="28"/>
+                    </Grid>
+                </GroupBox>
+
+                <GroupBox Header="Reason analysis columns" Margin="0,0,0,10" Padding="10">
+                    <DockPanel>
+                        <TextBlock DockPanel.Dock="Top" Text="Choose reference columns that may explain missing materials, such as plant, status, material type, deletion flag, valid dates, or source system."
+                                   TextWrapping="Wrap" Margin="0,0,0,8"/>
+                        <ListBox x:Name="ExplainColumnsList" Height="155">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <CheckBox Content="{Binding Name}" IsChecked="{Binding IsSelected, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                    </DockPanel>
+                </GroupBox>
+
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="170"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Grid.Row="0" Grid.Column="0" Text="Preview rows:" Style="{StaticResource FormLabelStyle}"/>
+                    <TextBox Grid.Row="0" Grid.Column="1" x:Name="PreviewRowsText" Text="1000" Style="{StaticResource FormTextBoxStyle}"/>
+
+                    <TextBlock Grid.Row="1" Grid.Column="0" Text="Output dataset name:" Style="{StaticResource FormLabelStyle}"/>
+                    <TextBox Grid.Row="1" Grid.Column="1" x:Name="OutputDatasetNameText" Style="{StaticResource FormTextBoxStyle}"/>
+
+                    <CheckBox Grid.Row="2" Grid.Column="1" x:Name="NormalizeKeysCheck" Content="Normalize keys: trim, uppercase, remove leading zeros" IsChecked="True" Margin="0,4,0,6"/>
+                    <CheckBox Grid.Row="3" Grid.Column="1" x:Name="SaveMissingCheck" Content="Save missing rows as a local dataset" IsChecked="True" Margin="0,4,0,0"/>
+                </Grid>
+            </StackPanel>
+        </ScrollViewer>
+    </DockPanel>
+</Window>

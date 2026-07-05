@@ -227,6 +227,35 @@ public partial class MainWindow : Window
         new QualityDialog(report) { Owner = this }.ShowDialog();
     }
 
+    private async void CompareMaterials_Click(object sender, RoutedEventArgs e)
+    {
+        var datasets = _workspace.SnapshotDatasets();
+        if (datasets.Count < 2)
+        {
+            MessageBox.Show(this, "Import or extract at least two datasets first: a reference dataset and a target dataset.", "Compare Materials", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        var dialog = new CompareMaterialsDialog(_engine, datasets) { Owner = this };
+        if (dialog.ShowDialog() != true || dialog.Request == null) return;
+
+        try
+        {
+            SetStatus("Comparing mandatory materials...", true);
+            var result = await _engine.CompareMandatoryMaterialsAsync(dialog.Request, CancellationToken.None);
+            _currentResults = result.MissingRows;
+            ResultsGrid.ItemsSource = result.MissingRows.DefaultView;
+            RefreshExplorer();
+            SetStatus($"Compare completed. Missing mandatory materials: {result.MissingRowsCount:N0}");
+            new CompareMaterialsResultDialog(result) { Owner = this }.ShowDialog();
+        }
+        catch (Exception ex)
+        {
+            SetStatus("Compare failed");
+            MessageBox.Show(this, ex.Message, "Compare Materials", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
     private async void DatasetsTree_DoubleClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
     {
         if (SelectedTreeValue(DatasetsTree) is DatasetInfo dataset)

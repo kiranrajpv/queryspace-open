@@ -22,6 +22,7 @@ The purpose of this version is to keep the same user workflow while making packa
 - Preview row limit textbox.
 - Export query result to CSV.
 - Data quality report with score, null percentages, unique counts, and CPU-only numeric outlier detection.
+- Mandatory material comparison: validate that every key in a reference dataset exists in a target dataset, show missing rows, coverage, explainable reason summary, column impact, SQL used, and optionally save the missing list as a local Parquet dataset.
 - ODBC DSN connection with an editable dropdown populated from Windows ODBC Administrator DSNs.
 - Direct SQL Server connection through Microsoft SqlClient.
 - Snowflake token connection through Snowflake .NET connector.
@@ -263,6 +264,11 @@ The installer includes the app files, desktop/start-menu shortcuts, [LICENSE](LI
 
 11. Confirm extraction creates `workspace\datasets\<dataset_name>.parquet`.
 12. Try cancelling a longer extract and confirm partial files are removed.
+13. Import or extract a reference material list and a target BOM/material dataset.
+14. Click **Compare Materials**.
+15. Select the reference dataset, target dataset, material key mapping, and optional plant key mapping.
+16. Confirm the result dialog shows **Missing Mandatory Materials**, **Coverage**, **Reason Summary**, **Column Impact**, and **SQL Used**.
+17. If **Save missing rows as a local dataset** is checked, confirm the missing list appears in **Local Datasets**.
 
 ## Important notes
 

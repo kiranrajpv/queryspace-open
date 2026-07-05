@@ -96,3 +96,35 @@ public sealed class DatasetDetails
     public long? RowCount { get; init; }
     public List<ParquetColumnInfo> Columns { get; init; } = new();
 }
+
+public sealed class MaterialCompareKeyMapping
+{
+    public string ReferenceColumn { get; init; } = "";
+    public string TargetColumn { get; init; } = "";
+}
+
+public sealed class MaterialCompareRequest
+{
+    public DatasetInfo ReferenceDataset { get; init; } = new();
+    public DatasetInfo TargetDataset { get; init; } = new();
+    public DatasetInfo? ContextDataset { get; init; }
+    public List<MaterialCompareKeyMapping> KeyMappings { get; init; } = new();
+    public List<string> ExplainColumns { get; init; } = new();
+    public bool NormalizeKeys { get; init; } = true;
+    public bool SaveMissingAsDataset { get; init; }
+    public string OutputDatasetName { get; init; } = "";
+    public int PreviewRows { get; init; } = 1000;
+}
+
+public sealed class MaterialCompareResult
+{
+    public DataTable MissingRows { get; init; } = new();
+    public DataTable Coverage { get; init; } = new();
+    public DataTable ReasonSummary { get; init; } = new();
+    public DataTable ColumnImpact { get; init; } = new();
+    public string SqlUsed { get; init; } = "";
+    public DatasetInfo? SavedDataset { get; init; }
+    public long ReferenceRows { get; init; }
+    public long FoundRows { get; init; }
+    public long MissingRowsCount { get; init; }
+}
