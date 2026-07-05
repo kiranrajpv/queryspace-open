@@ -227,6 +227,27 @@ public partial class MainWindow : Window
         new QualityDialog(report) { Owner = this }.ShowDialog();
     }
 
+    private void AnalyzeTransform_Click(object sender, RoutedEventArgs e)
+    {
+        if (_currentResults == null)
+        {
+            MessageBox.Show(this, "Run a tagged transformation SQL query first.", "Analyze Transform");
+            return;
+        }
+
+        try
+        {
+            var report = TransformationAnalysisService.Analyze(SqlEditor.Text, _currentResults);
+            new TransformationAnalysisDialog(report) { Owner = this }.ShowDialog();
+            SetStatus($"Transformation analysis completed. Score {report.QualityScore:N1}.");
+        }
+        catch (Exception ex)
+        {
+            SetStatus("Transformation analysis failed");
+            MessageBox.Show(this, ex.Message, "Analyze Transform", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
     private async void DatasetsTree_DoubleClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
     {
         if (SelectedTreeValue(DatasetsTree) is DatasetInfo dataset)

@@ -96,3 +96,16 @@ public sealed class DatasetDetails
     public long? RowCount { get; init; }
     public List<ParquetColumnInfo> Columns { get; init; } = new();
 }
+
+public sealed class TransformationAnalysisReport
+{
+    public string AnalysisName { get; init; } = "";
+    public int RowsAnalyzed { get; init; }
+    public double QualityScore { get; init; }
+    public Dictionary<string, string> Tags { get; init; } = new(StringComparer.OrdinalIgnoreCase);
+    public DataTable Overview { get; init; } = new();
+    public DataTable Issues { get; init; } = new();
+    public DataTable ColumnPairs { get; init; } = new();
+    public DataTable CrossReference { get; init; } = new();
+    public DataTable Recommendations { get; init; } = new();
+}

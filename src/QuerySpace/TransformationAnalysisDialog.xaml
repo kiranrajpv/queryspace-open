@@ -1,0 +1,33 @@
+<Window x:Class="QuerySpace.TransformationAnalysisDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="SAP Material Transformation Analysis" Height="720" Width="1100" MinHeight="620" MinWidth="900"
+        WindowStartupLocation="CenterOwner">
+    <DockPanel Margin="12">
+        <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+            <Button Content="Close" IsDefault="True" Style="{StaticResource DialogActionButtonStyle}" Click="Close_Click"/>
+        </StackPanel>
+        <TextBlock x:Name="SummaryText" DockPanel.Dock="Top" FontWeight="SemiBold" Margin="0,0,0,10" TextWrapping="Wrap"/>
+        <TabControl>
+            <TabItem Header="Overview">
+                <DataGrid x:Name="OverviewGrid" IsReadOnly="True"/>
+            </TabItem>
+            <TabItem Header="Issues">
+                <DataGrid x:Name="IssuesGrid" IsReadOnly="True"/>
+            </TabItem>
+            <TabItem Header="Column Pairs">
+                <DataGrid x:Name="PairsGrid" IsReadOnly="True"/>
+            </TabItem>
+            <TabItem Header="Cross Reference">
+                <DataGrid x:Name="XrefGrid" IsReadOnly="True"/>
+            </TabItem>
+            <TabItem Header="Recommendations">
+                <DataGrid x:Name="RecommendationsGrid" IsReadOnly="True"/>
+            </TabItem>
+            <TabItem Header="Tags Used">
+                <TextBox x:Name="TagsText" FontFamily="Consolas" FontSize="14" IsReadOnly="True" AcceptsReturn="True"
+                         VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"/>
+            </TabItem>
+        </TabControl>
+    </DockPanel>
+</Window>

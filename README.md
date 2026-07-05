@@ -22,6 +22,7 @@ The purpose of this version is to keep the same user workflow while making packa
 - Preview row limit textbox.
 - Export query result to CSV.
 - Data quality report with score, null percentages, unique counts, and CPU-only numeric outlier detection.
+- Tagged SQL transformation analysis for SAP Material projects: validates ECC extract/source columns, pre-load transformed columns, cross-reference usage, and S/4 MDG post-load values from the query result grid.
 - ODBC DSN connection with an editable dropdown populated from Windows ODBC Administrator DSNs.
 - Direct SQL Server connection through Microsoft SqlClient.
 - Snowflake token connection through Snowflake .NET connector.
@@ -230,6 +231,89 @@ C:\Users\kiran\source\queryspace-csharp\installer-output\QuerySpace-Setup-0.1.0.
 
 The installer includes the app files, desktop/start-menu shortcuts, [LICENSE](LICENSE), [README.md](README.md), and [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md). Use `-FrameworkDependent` if your company deployment standard is to install the .NET Desktop Runtime separately instead of creating a self-contained installer.
 
+## SAP Material transformation analysis from tagged SQL
+
+Run a DuckDB query that returns source/ECC columns, transformed/pre-load columns, optional cross-reference columns, and optional MDG post-load columns. Add tags as SQL comments, then click **Analyze Transform**.
+
+Useful tags:
+
+| Tag | Purpose |
+|---|---|
+| `@analysis` | Analysis name, for example `sap-material-transformation`. |
+| `@source` / `@extract` | ECC extract/source dataset name. |
+| `@target` / `@preload` | Transformed pre-load dataset name. |
+| `@postload` | S/4 MDG post-load dataset name. |
+| `@xref` | Cross-reference dataset used by the transformation. |
+| `@keys` | Business key columns returned in the result. |
+| `@source-prefix` / `@extract-prefix` | Prefix for ECC/source columns in the result, default `source_`. |
+| `@target-prefix` / `@preload-prefix` | Prefix for transformed/pre-load columns, default `transformed_`. |
+| `@postload-prefix` | Prefix for MDG post-load columns, default `mdg_`. |
+| `@xref-prefix` | Prefix for cross-reference columns, default `xref_`. |
+| `@compare` | Explicit source/transformed column pairs, for example `source_matnr=transformed_matnr`. |
+| `@xref-values` | Transformed column to expected xref column, for example `transformed_matnr=xref_mdg_matnr`. |
+| `@xref-valid-from` / `@xref-valid-to` | Cross-reference validity date columns. |
+| `@business-date` | Date used for validity checks. |
+| `@rules` | Rules to run. If omitted, QuerySpace runs the standard SAP material transformation rule set. |
+| `@numeric-tolerance` | Allowed numeric difference for quantity/amount fields. |
+| `@date-tolerance-days` | Allowed date difference. |
+| `@xref-default-values` | Default/unmapped values to flag, for example `UNKNOWN,N/A,UNMAPPED`. |
+
+Supported rules include `null-introduced`, `value-changed`, `numeric-drift`, `date-drift`, `leading-zero-loss`, `case-change`, `trim-change`, `xref-missing`, `xref-mismatch`, `xref-expired`, `xref-default-used`, `duplicate-key`, `postload-mismatch`, and `distribution-shift`.
+
+Example:
+
+```sql
+-- @analysis: sap-material-transformation
+-- @source: ecc_material_extract
+-- @target: material_preload
+-- @postload: mdg_material_postload
+-- @xref: material_crossref
+-- @keys: source_matnr, source_werks
+-- @source-prefix: source_
+-- @target-prefix: transformed_
+-- @postload-prefix: mdg_
+-- @xref-prefix: xref_
+-- @compare: source_matnr=transformed_matnr, source_werks=transformed_werks, source_meins=transformed_meins, source_mtart=transformed_mtart
+-- @xref-values: transformed_matnr=xref_mdg_matnr, transformed_meins=xref_target_uom
+-- @xref-valid-from: xref_valid_from
+-- @xref-valid-to: xref_valid_to
+-- @business-date: 2026-07-04
+-- @numeric-tolerance: 0.01
+-- @date-tolerance-days: 1
+-- @xref-default-values: UNKNOWN,N/A,UNMAPPED
+-- @rules: null-introduced, value-changed, numeric-drift, leading-zero-loss, xref-missing, xref-mismatch, xref-expired, xref-default-used, duplicate-key, postload-mismatch, distribution-shift
+
+select
+  s.matnr as source_matnr,
+  s.werks as source_werks,
+  s.meins as source_meins,
+  s.mtart as source_mtart,
+  s.lvorm as source_lvorm,
+  t.matnr as transformed_matnr,
+  t.werks as transformed_werks,
+  t.meins as transformed_meins,
+  t.mtart as transformed_mtart,
+  x.legacy_matnr as xref_legacy_matnr,
+  x.mdg_matnr as xref_mdg_matnr,
+  x.target_uom as xref_target_uom,
+  x.valid_from as xref_valid_from,
+  x.valid_to as xref_valid_to,
+  m.matnr as mdg_matnr,
+  m.werks as mdg_werks,
+  m.meins as mdg_meins,
+  m.mtart as mdg_mtart
+from ecc_material_extract s
+left join material_crossref x
+  on s.matnr = x.legacy_matnr
+ and s.werks = x.legacy_werks
+left join material_preload t
+  on x.mdg_matnr = t.matnr
+ and s.werks = t.werks
+left join mdg_material_postload m
+  on t.matnr = m.matnr
+ and t.werks = m.werks;
+```
+
 ## Manual test checklist
 
 1. Launch QuerySpace.
@@ -263,6 +347,8 @@ The installer includes the app files, desktop/start-menu shortcuts, [LICENSE](LI
 
 11. Confirm extraction creates `workspace\datasets\<dataset_name>.parquet`.
 12. Try cancelling a longer extract and confirm partial files are removed.
+13. Run a tagged SAP material transformation query that returns source/transformed/xref/MDG columns.
+14. Click **Analyze Transform** and review **Overview**, **Issues**, **Column Pairs**, **Cross Reference**, **Recommendations**, and **Tags Used**.
 
 ## Important notes
 
