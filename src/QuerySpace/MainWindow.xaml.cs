@@ -418,7 +418,7 @@ public partial class MainWindow : Window
         ScriptsTree.Items.Clear();
         foreach (var path in _workspace.ListScripts())
         {
-            ScriptsTree.Items.Add(new TreeViewItem { Header = TreeHeader("\uE8A5", Path.GetFileName(path)), Tag = path });
+            ScriptsTree.Items.Add(new TreeViewItem { Header = TreeHeader(SqlFileIcon(), Path.GetFileName(path)), Tag = path });
         }
         TemplatesTree.Items.Clear();
         foreach (var path in ListTemplateScripts())
@@ -431,7 +431,7 @@ public partial class MainWindow : Window
             var item = new TreeViewItem { Header = TreeHeader("\uE839", $"{connection.Name} [{connection.Kind}]"), Tag = connection, IsExpanded = true };
             foreach (var query in extractQueries.Where(q => q.ConnectionId == connection.Id).OrderBy(q => q.Name))
             {
-                item.Items.Add(new TreeViewItem { Header = TreeHeader("\uE8A5", $"{query.Name}.sql ({query.RowCount:N0} rows)"), Tag = query });
+                item.Items.Add(new TreeViewItem { Header = TreeHeader(SqlFileIcon(), $"{query.Name}.sql ({query.RowCount:N0} rows)"), Tag = query });
             }
             ConnectionsTree.Items.Add(item);
         }
@@ -472,6 +472,52 @@ public partial class MainWindow : Window
             Margin = new Thickness(0, 0, 6, 0),
             VerticalAlignment = VerticalAlignment.Center
         };
+    }
+
+    private static Grid SqlFileIcon()
+    {
+        var blue = new SolidColorBrush(Color.FromRgb(43, 119, 210));
+        var lightBlue = new SolidColorBrush(Color.FromRgb(219, 235, 255));
+        var foldBlue = new SolidColorBrush(Color.FromRgb(157, 199, 245));
+        var darkBlue = new SolidColorBrush(Color.FromRgb(26, 83, 155));
+        var icon = new Grid
+        {
+            Width = 16,
+            Height = 16,
+            Margin = new Thickness(0, 0, 6, 0),
+            VerticalAlignment = VerticalAlignment.Center
+        };
+
+        icon.Children.Add(new System.Windows.Shapes.Rectangle
+        {
+            Width = 12,
+            Height = 15,
+            RadiusX = 1.5,
+            RadiusY = 1.5,
+            Fill = lightBlue,
+            Stroke = darkBlue,
+            StrokeThickness = 1,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center
+        });
+        icon.Children.Add(new System.Windows.Shapes.Polygon
+        {
+            Points = new PointCollection { new Point(10, 1), new Point(14, 5), new Point(10, 5) },
+            Fill = foldBlue,
+            Stroke = darkBlue,
+            StrokeThickness = 0.8
+        });
+        icon.Children.Add(new TextBlock
+        {
+            Text = "SQL",
+            Foreground = blue,
+            FontSize = 5.5,
+            FontWeight = FontWeights.Bold,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Bottom,
+            Margin = new Thickness(0, 0, 0, 2)
+        });
+        return icon;
     }
 
     private static Grid StorageIcon()
