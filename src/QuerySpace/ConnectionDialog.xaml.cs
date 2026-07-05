@@ -2,6 +2,7 @@ using Microsoft.Win32;
 using System.Diagnostics;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Documents;
 
 namespace QuerySpace;
 
@@ -172,123 +173,74 @@ public partial class ConnectionDialog : Window
         DockPanel.SetDock(close, Dock.Bottom);
         root.Children.Add(close);
 
-        var linkPanel = new WrapPanel { Margin = new Thickness(0, 0, 0, 12) };
-        AddLinkButton(linkPanel, "Download HANA tools", "https://tools.hana.ondemand.com/#hanatools");
-        AddLinkButton(linkPanel, "Download Windows x64 client ZIP", "https://tools.hana.ondemand.com/additional/hanaclient-latest-windows-x64.zip");
-        AddLinkButton(linkPanel, "Install client tools guide", "https://help.sap.com/docs/SAP_HANA_CLIENT/8e208b44c0784f028b948958ef1d05e7/c5d4a5c3bb57101486b683177bee7725.html?locale=en-US&version=LATEST");
-        AddLinkButton(linkPanel, "Configure HANA ODBC guide", "https://help.sap.com/docs/SAP_PREDICTIVE_ANALYTICS/e9146b36040844d0b1f309bc8c1ba6ab/734759c0c1c9440c857da0d366e47dda.html?version=LATEST&locale=en-US");
-        DockPanel.SetDock(linkPanel, Dock.Top);
-        root.Children.Add(linkPanel);
-
-        var helpText = new TextBox
+        var scrollViewer = new ScrollViewer
         {
-            Text = HanaOdbcHelpText,
-            IsReadOnly = true,
-            AcceptsReturn = true,
-            TextWrapping = TextWrapping.Wrap,
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
-            FontFamily = new System.Windows.Media.FontFamily("Consolas"),
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled
+        };
+        var helpText = new TextBlock
+        {
+            TextWrapping = TextWrapping.Wrap,
             FontSize = 13,
             Padding = new Thickness(10)
         };
-        root.Children.Add(helpText);
+        AddHanaOdbcHelpContent(helpText);
+        scrollViewer.Content = helpText;
+        root.Children.Add(scrollViewer);
         window.Content = root;
         window.ShowDialog();
     }
 
-    private static void AddLinkButton(Panel panel, string label, string url)
+    private static void AddHanaOdbcHelpContent(TextBlock text)
     {
-        var button = new Button
+        AddText(text, "HANA Connections are supported using ODBC.\n\nUse these steps on the Windows machine where QuerySpace is installed.\n\n");
+        AddStepHeading(text, "Step 1: Download ODBC Driver for HANA (HANA Client Tools)");
+        AddText(text, "\nSAP HANA tools page:\n");
+        AddHyperlink(text, "https://tools.hana.ondemand.com/#hanatools");
+        AddText(text, "\n\nDirect Windows x64 HANA Client ZIP:\n");
+        AddHyperlink(text, "https://tools.hana.ondemand.com/additional/hanaclient-latest-windows-x64.zip");
+        AddText(text, "\n\n");
+        AddStepHeading(text, "Step 2: Install Client Tools");
+        AddText(text, "\nSAP installation guide:\n");
+        AddHyperlink(text, "https://help.sap.com/docs/SAP_HANA_CLIENT/8e208b44c0784f028b948958ef1d05e7/c5d4a5c3bb57101486b683177bee7725.html?locale=en-US&version=LATEST");
+        AddText(text, "\n\nTypical steps:\n- Extract hanaclient-latest-windows-x64.zip.\n- Run hdbsetup.exe or hdbinst.exe from the extracted client folder.\n- Install the 64-bit SAP HANA Client.\n- Confirm the HANA ODBC driver is available after install.\n\n");
+        AddStepHeading(text, "Step 3: Configure HANA ODBC Connection");
+        AddText(text, "\nSAP ODBC configuration guide:\n");
+        AddHyperlink(text, "https://help.sap.com/docs/SAP_PREDICTIVE_ANALYTICS/e9146b36040844d0b1f309bc8c1ba6ab/734759c0c1c9440c857da0d366e47dda.html?version=LATEST&locale=en-US");
+        AddText(text, "\n\nWindows steps:\n- Open 64-bit ODBC Data Source Administrator:\n  C:\\Windows\\System32\\odbcad32.exe\n\n- Use User DSN or System DSN.\n- Click Add.\n- Select the SAP HANA ODBC driver, usually named HDBODBC.\n- Create a DSN name, for example HANA_DEV.\n- Enter the HANA server host and SQL port.\n\nCommon HANA SQL port format:\n- Instance 00: 30015\n- Instance 01: 30115\n- Instance 02: 30215\n\nFor SAP HANA Cloud, use the host and port shown in the SAP HANA Cloud connection details.\n\n");
+        AddStepHeading(text, "Step 4: Add the connection in QuerySpace");
+        AddText(text, "\n- Open Add Connection.\n- Select ODBC DSN.\n- Select or type the DSN name, for example HANA_DEV.\n- Enter user and password/token if required.\n- Click Test connection.\n- Click Save.\n\n");
+        AddStepHeading(text, "Step 5: Smoke-test the HANA connection");
+        AddText(text, "\nUse Extract Base Query and test:\n\nselect current_timestamp as hana_time\nfrom dummy;\n\nOr:\n\nselect current_schema as current_schema\nfrom dummy;\n\n");
+        AddStepHeading(text, "Notes");
+        AddText(text, "\n");
+        AddText(text, "- QuerySpace is a 64-bit application, so configure the DSN in the 64-bit ODBC Administrator.\n- C:\\Windows\\System32\\odbcad32.exe is the 64-bit ODBC Administrator.\n- C:\\Windows\\SysWOW64\\odbcad32.exe is the 32-bit ODBC Administrator and should not be used for QuerySpace.\n- If your company requires SSL/TLS for HANA, configure it in the SAP HANA ODBC DSN/driver settings.\n");
+    }
+
+    private static void AddStepHeading(TextBlock text, string value)
+    {
+        text.Inlines.Add(new Run(value) { FontWeight = FontWeights.SemiBold });
+    }
+
+    private static void AddText(TextBlock text, string value)
+    {
+        text.Inlines.Add(new Run(value));
+    }
+
+    private static void AddHyperlink(TextBlock text, string url)
+    {
+        var hyperlink = new Hyperlink(new Run(url))
         {
-            Content = label,
-            Tag = url,
-            MinHeight = 32,
-            Margin = new Thickness(0, 0, 8, 8),
-            Padding = new Thickness(10, 5, 10, 5)
+            NavigateUri = new Uri(url)
         };
-        button.Click += (_, _) => OpenUrl(url);
-        panel.Children.Add(button);
+        hyperlink.RequestNavigate += (_, args) => OpenUrl(args.Uri.AbsoluteUri);
+        text.Inlines.Add(hyperlink);
     }
 
     private static void OpenUrl(string url)
     {
         Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
     }
-
-    private const string HanaOdbcHelpText = """
-HANA Connections are supported using ODBC.
-
-Use these steps on the Windows machine where QuerySpace is installed.
-
-1. Download ODBC Driver for HANA (HANA Client Tools)
-
-   SAP HANA tools page:
-   https://tools.hana.ondemand.com/#hanatools
-
-   Direct Windows x64 HANA Client ZIP:
-   https://tools.hana.ondemand.com/additional/hanaclient-latest-windows-x64.zip
-
-2. Install Client Tools
-
-   SAP installation guide:
-   https://help.sap.com/docs/SAP_HANA_CLIENT/8e208b44c0784f028b948958ef1d05e7/c5d4a5c3bb57101486b683177bee7725.html?locale=en-US&version=LATEST
-
-   Typical steps:
-   - Extract hanaclient-latest-windows-x64.zip.
-   - Run hdbsetup.exe or hdbinst.exe from the extracted client folder.
-   - Install the 64-bit SAP HANA Client.
-   - Confirm the HANA ODBC driver is available after install.
-
-3. Configure HANA ODBC Connection
-
-   SAP ODBC configuration guide:
-   https://help.sap.com/docs/SAP_PREDICTIVE_ANALYTICS/e9146b36040844d0b1f309bc8c1ba6ab/734759c0c1c9440c857da0d366e47dda.html?version=LATEST&locale=en-US
-
-   Windows steps:
-   - Open 64-bit ODBC Data Source Administrator:
-     C:\Windows\System32\odbcad32.exe
-
-   - Use User DSN or System DSN.
-   - Click Add.
-   - Select the SAP HANA ODBC driver, usually named HDBODBC.
-   - Create a DSN name, for example HANA_DEV.
-   - Enter the HANA server host and SQL port.
-
-   Common HANA SQL port format:
-   - Instance 00: 30015
-   - Instance 01: 30115
-   - Instance 02: 30215
-
-   For SAP HANA Cloud, use the host and port shown in the SAP HANA Cloud connection details.
-
-4. Add the connection in QuerySpace
-
-   - Open Add Connection.
-   - Select ODBC DSN.
-   - Select or type the DSN name, for example HANA_DEV.
-   - Enter user and password/token if required.
-   - Click Test connection.
-   - Click Save.
-
-5. Smoke-test query
-
-   Use Extract Base Query and test:
-
-   select current_timestamp as hana_time
-   from dummy;
-
-   Or:
-
-   select current_schema as current_schema
-   from dummy;
-
-Notes:
-- QuerySpace is a 64-bit application, so configure the DSN in the 64-bit ODBC Administrator.
-- C:\Windows\System32\odbcad32.exe is the 64-bit ODBC Administrator.
-- C:\Windows\SysWOW64\odbcad32.exe is the 32-bit ODBC Administrator and should not be used for QuerySpace.
-- If your company requires SSL/TLS for HANA, configure it in the SAP HANA ODBC DSN/driver settings.
-""";
 
     private void Capture()
     {
