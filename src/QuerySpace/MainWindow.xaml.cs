@@ -199,20 +199,41 @@ public partial class MainWindow : Window
         SetStatus($"Saved SQL {name}");
     }
 
-    private async void ExportCsv_Click(object sender, RoutedEventArgs e)
+    private async void ExportResult_Click(object sender, RoutedEventArgs e)
     {
-        var dialog = new SaveFileDialog { Filter = "CSV files|*.csv", InitialDirectory = _workspace.ExportsFolder, FileName = "query-results.csv" };
+        var format = PromptExportFormat();
+        if (!format.HasValue) return;
+        var extension = format.Value switch
+        {
+            ExportFormat.Csv => ".csv",
+            ExportFormat.Excel => ".xlsx",
+            ExportFormat.Parquet => ".parquet",
+            _ => ".dat"
+        };
+        var filter = format.Value switch
+        {
+            ExportFormat.Csv => "CSV files|*.csv",
+            ExportFormat.Excel => "Excel files|*.xlsx",
+            ExportFormat.Parquet => "Parquet files|*.parquet",
+            _ => "All files|*.*"
+        };
+        var dialog = new SaveFileDialog { Filter = filter, InitialDirectory = _workspace.ExportsFolder, FileName = "query-results" + extension };
         if (dialog.ShowDialog(this) != true) return;
         try
         {
-            SetStatus("Exporting CSV...", true);
-            await _engine.ExportCsvAsync(SqlEditor.Text, dialog.FileName, CancellationToken.None);
+            StartExportProgress();
+            SetStatus($"Exporting {format.Value}...", true);
+            await _engine.ExportResultAsync(SqlEditor.Text, dialog.FileName, format.Value, new Progress<string>(m => SetStatus(m, true)), CancellationToken.None);
             SetStatus($"Exported {dialog.FileName}");
         }
         catch (Exception ex)
         {
             SetStatus("Export failed");
             MessageBox.Show(this, ex.Message, "Export failed", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+        finally
+        {
+            StopExtractProgress();
         }
     }
 
@@ -433,5 +454,51 @@ public partial class MainWindow : Window
         panel.Children.Add(buttons);
         window.Content = panel;
         return window.ShowDialog() == true ? input.Text : null;
+    }
+
+    private void StartExportProgress()
+    {
+        ExtractProgressBar.Visibility = Visibility.Visible;
+        ExtractProgressBar.Value = 0;
+        ExtractProgressBar.IsIndeterminate = true;
+    }
+
+    private ExportFormat? PromptExportFormat()
+    {
+        var window = new Window
+        {
+            Title = "Export Result",
+            Width = 360,
+            Height = 190,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            ResizeMode = ResizeMode.NoResize,
+            Owner = this
+        };
+        WindowTitleBar.Apply(window);
+        var panel = new StackPanel { Margin = new Thickness(12) };
+        var combo = new ComboBox { MinHeight = 32, Margin = new Thickness(0, 6, 0, 12) };
+        combo.Items.Add("CSV");
+        combo.Items.Add("EXCEL");
+        combo.Items.Add("PARQUET");
+        combo.SelectedIndex = 0;
+        var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 8, 0, 0) };
+        var ok = new Button { Content = "OK", IsDefault = true, MinWidth = 96, MinHeight = 32, Padding = new Thickness(12, 6, 12, 6) };
+        var cancel = new Button { Content = "Cancel", IsCancel = true, MinWidth = 96, MinHeight = 32, Padding = new Thickness(12, 6, 12, 6), Margin = new Thickness(8, 0, 0, 0) };
+        ok.Click += (_, _) => window.DialogResult = true;
+        buttons.Children.Add(ok);
+        buttons.Children.Add(cancel);
+        panel.Children.Add(new TextBlock { Text = "Export format:" });
+        panel.Children.Add(combo);
+        panel.Children.Add(new TextBlock { Text = "CSV and Parquet are streamed directly by DuckDB. Excel is streamed to .xlsx and is limited to 1,048,576 rows.", TextWrapping = TextWrapping.Wrap });
+        panel.Children.Add(buttons);
+        window.Content = panel;
+        if (window.ShowDialog() != true) return null;
+        return combo.SelectedItem?.ToString() switch
+        {
+            "CSV" => ExportFormat.Csv,
+            "EXCEL" => ExportFormat.Excel,
+            "PARQUET" => ExportFormat.Parquet,
+            _ => null
+        };
     }
 }

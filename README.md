@@ -20,7 +20,7 @@ The purpose of this version is to keep the same user workflow while making packa
 - Read-only mode for SELECT-style queries.
 - Multiple-statement SQL script execution in memory mode.
 - Preview row limit textbox.
-- Export query result to CSV.
+- Export query result to CSV, Excel `.xlsx`, or Parquet. CSV and Parquet exports stream through DuckDB; Excel exports stream to `.xlsx` and is limited by Excel's 1,048,576-row sheet limit. Exports write to a `.partial` file first and only replace the final file after success.
 - Data quality report with score, null percentages, unique counts, and CPU-only numeric outlier detection.
 - Tagged SQL transformation analysis for SAP Material projects: validates ECC extract/source columns, pre-load transformed columns, cross-reference usage, and S/4 MDG post-load values from the query result grid.
 - ODBC DSN connection with an editable dropdown populated from Windows ODBC Administrator DSNs.
@@ -327,9 +327,10 @@ left join mdg_material_postload m
    ```
 
 6. Click **Analyze Quality**.
-7. Right-click the dataset and open **Information**.
-8. Save a SQL script and confirm it appears in **SQL Scripts**.
-9. Add a SQL Server connection for local Express:
+7. Click **Export Result**, choose CSV, Excel, or Parquet, and confirm the file is written under the workspace exports folder or chosen path.
+8. Right-click the dataset and open **Information**.
+9. Save a SQL script and confirm it appears in **SQL Scripts**.
+10. Add a SQL Server connection for local Express:
 
    ```text
    Server: NN007\SQLEXPRESS
@@ -339,16 +340,16 @@ left join mdg_material_postload m
    Trust server certificate: checked, if using local dev certs
    ```
 
-10. Run **Extract Base Query** with a small query first:
+11. Run **Extract Base Query** with a small query first:
 
     ```sql
     select top 100 * from dbo.YourTable;
     ```
 
-11. Confirm extraction creates `workspace\datasets\<dataset_name>.parquet`.
-12. Try cancelling a longer extract and confirm partial files are removed.
-13. Run a tagged SAP material transformation query that returns source/transformed/xref/MDG columns.
-14. Click **Analyze Transform** and review **Overview**, **Issues**, **Column Pairs**, **Cross Reference**, **Recommendations**, and **Tags Used**.
+12. Confirm extraction creates `workspace\datasets\<dataset_name>.parquet`.
+13. Try cancelling a longer extract and confirm partial files are removed.
+14. Run a tagged SAP material transformation query that returns source/transformed/xref/MDG columns.
+15. Click **Analyze Transform** and review **Overview**, **Issues**, **Column Pairs**, **Cross Reference**, **Recommendations**, and **Tags Used**.
 
 ## Important notes
 

@@ -13,7 +13,7 @@
                 <Button x:Name="StopExtractButton" Content="Stop Extraction" Visibility="Collapsed" Click="StopExtraction_Click" Style="{StaticResource ToolbarButtonStyle}" MinWidth="130"/>
                 <Separator Width="12" Opacity="0"/>
                 <Button Content="Save SQL" Click="SaveSql_Click" Style="{StaticResource ToolbarButtonStyle}"/>
-                <Button Content="Export Results CSV" Click="ExportCsv_Click" Style="{StaticResource ToolbarButtonStyle}" MinWidth="150"/>
+                <Button Content="Export Result" Click="ExportResult_Click" Style="{StaticResource ToolbarButtonStyle}" MinWidth="125"/>
                 <Button Content="Analyze Quality" Click="AnalyzeQuality_Click" Style="{StaticResource ToolbarButtonStyle}" MinWidth="130"/>
                 <Button Content="Analyze Transform" Click="AnalyzeTransform_Click" Style="{StaticResource ToolbarButtonStyle}" MinWidth="145"/>
             </StackPanel>

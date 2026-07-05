@@ -9,7 +9,9 @@ using System.Data.Common;
 using System.Data.Odbc;
 using System.Globalization;
 using System.IO;
+using System.IO.Compression;
 using System.Text;
+using System.Xml;
 
 namespace QuerySpace;
 
@@ -129,17 +131,41 @@ public sealed class DataEngine
         }
     }
 
-    public async Task ExportCsvAsync(string sql, string outputPath, CancellationToken token)
+    public async Task ExportResultAsync(string sql, string outputPath, ExportFormat format, IProgress<string>? progress, CancellationToken token)
     {
         await Task.Run(() =>
         {
             token.ThrowIfCancellationRequested();
+            var partialPath = outputPath + ".partial";
+            if (File.Exists(partialPath)) File.Delete(partialPath);
             using var connection = NewOpenDuckConnection();
             RegisterDatasetViews(connection);
-            var last = SplitStatements(sql).LastOrDefault() ?? throw new InvalidOperationException("Enter a SQL statement.");
-            using var command = connection.CreateCommand();
-            command.CommandText = $"copy ({TrimTrailingSemicolon(last)}) to '{EscapePath(outputPath)}' (header, delimiter ',')";
-            command.ExecuteNonQuery();
+            var last = PrepareStatementsForExport(connection, sql, token);
+            try
+            {
+                progress?.Report($"Exporting {format}...");
+                switch (format)
+                {
+                    case ExportFormat.Csv:
+                        CopyQueryToFile(connection, last, partialPath, "csv");
+                        break;
+                    case ExportFormat.Parquet:
+                        CopyQueryToFile(connection, last, partialPath, "parquet");
+                        break;
+                    case ExportFormat.Excel:
+                        WriteQueryToExcel(connection, last, partialPath, progress, token);
+                        break;
+                    default:
+                        throw new InvalidOperationException($"Unsupported export format: {format}");
+                }
+
+                token.ThrowIfCancellationRequested();
+                File.Move(partialPath, outputPath, true);
+            }
+            finally
+            {
+                if (File.Exists(partialPath)) File.Delete(partialPath);
+            }
         }, token);
     }
 
@@ -261,6 +287,135 @@ public sealed class DataEngine
             command.CommandText = $"copy (select * from read_csv_auto('{EscapePath(csvPath)}', nullstr=['#N/A','#VALUE!','#REF!','#DIV/0!','NULL','null','N/A',''])) to '{EscapePath(parquetPath)}' (format parquet, compression zstd)";
             command.ExecuteNonQuery();
         }, token);
+    }
+
+    private static string PrepareStatementsForExport(DuckDBConnection connection, string sql, CancellationToken token)
+    {
+        var statements = SplitStatements(sql).ToList();
+        if (statements.Count == 0) throw new InvalidOperationException("Enter a SQL statement.");
+        for (var i = 0; i < statements.Count - 1; i++)
+        {
+            token.ThrowIfCancellationRequested();
+            using var command = connection.CreateCommand();
+            command.CommandText = statements[i];
+            command.ExecuteNonQuery();
+        }
+
+        return TrimTrailingSemicolon(statements[^1]);
+    }
+
+    private static void CopyQueryToFile(DuckDBConnection connection, string sql, string outputPath, string format)
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText = format.Equals("csv", StringComparison.OrdinalIgnoreCase)
+            ? $"copy ({sql}) to '{EscapePath(outputPath)}' (header, delimiter ',')"
+            : $"copy ({sql}) to '{EscapePath(outputPath)}' (format parquet, compression zstd)";
+        command.ExecuteNonQuery();
+    }
+
+    private static void WriteQueryToExcel(DuckDBConnection connection, string sql, string outputPath, IProgress<string>? progress, CancellationToken token)
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText = sql;
+        using var reader = command.ExecuteReader(CommandBehavior.SequentialAccess);
+        using var archiveStream = File.Create(outputPath);
+        using var archive = new ZipArchive(archiveStream, ZipArchiveMode.Create);
+
+        WriteZipText(archive, "[Content_Types].xml",
+            "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>" +
+            "<Types xmlns=\"http://schemas.openxmlformats.org/package/2006/content-types\">" +
+            "<Default Extension=\"rels\" ContentType=\"application/vnd.openxmlformats-package.relationships+xml\"/>" +
+            "<Default Extension=\"xml\" ContentType=\"application/xml\"/>" +
+            "<Override PartName=\"/xl/workbook.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml\"/>" +
+            "<Override PartName=\"/xl/worksheets/sheet1.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml\"/>" +
+            "</Types>");
+        WriteZipText(archive, "_rels/.rels",
+            "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>" +
+            "<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">" +
+            "<Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument\" Target=\"xl/workbook.xml\"/>" +
+            "</Relationships>");
+        WriteZipText(archive, "xl/workbook.xml",
+            "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>" +
+            "<workbook xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\">" +
+            "<sheets><sheet name=\"Results\" sheetId=\"1\" r:id=\"rId1\"/></sheets>" +
+            "</workbook>");
+        WriteZipText(archive, "xl/_rels/workbook.xml.rels",
+            "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>" +
+            "<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">" +
+            "<Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet\" Target=\"worksheets/sheet1.xml\"/>" +
+            "</Relationships>");
+
+        var sheetEntry = archive.CreateEntry("xl/worksheets/sheet1.xml", CompressionLevel.Optimal);
+        using var sheetStream = sheetEntry.Open();
+        var settings = new XmlWriterSettings { Encoding = new UTF8Encoding(false), CloseOutput = false };
+        using var writer = XmlWriter.Create(sheetStream, settings);
+        writer.WriteStartDocument();
+        writer.WriteStartElement("worksheet", "http://schemas.openxmlformats.org/spreadsheetml/2006/main");
+        writer.WriteStartElement("sheetData");
+        WriteExcelRow(writer, 1, Enumerable.Range(0, reader.FieldCount).Select(reader.GetName));
+
+        var rowNumber = 1;
+        while (reader.Read())
+        {
+            token.ThrowIfCancellationRequested();
+            rowNumber++;
+            if (rowNumber > 1_048_576)
+            {
+                throw new InvalidOperationException("Excel .xlsx supports a maximum of 1,048,576 rows per sheet. Export to CSV or Parquet for larger results.");
+            }
+
+            var values = new string?[reader.FieldCount];
+            for (var i = 0; i < reader.FieldCount; i++)
+            {
+                values[i] = reader.IsDBNull(i) ? null : Convert.ToString(reader.GetValue(i), CultureInfo.InvariantCulture);
+            }
+            WriteExcelRow(writer, rowNumber, values);
+            if (rowNumber % 50_000 == 0) progress?.Report($"Exported {rowNumber - 1:N0} Excel rows...");
+        }
+
+        writer.WriteEndElement();
+        writer.WriteEndElement();
+        writer.WriteEndDocument();
+        progress?.Report($"Exported {rowNumber - 1:N0} Excel rows.");
+    }
+
+    private static void WriteZipText(ZipArchive archive, string name, string text)
+    {
+        var entry = archive.CreateEntry(name, CompressionLevel.Optimal);
+        using var stream = entry.Open();
+        using var writer = new StreamWriter(stream, new UTF8Encoding(false));
+        writer.Write(text);
+    }
+
+    private static void WriteExcelRow(XmlWriter writer, int rowNumber, IEnumerable<string?> values)
+    {
+        writer.WriteStartElement("row");
+        writer.WriteAttributeString("r", rowNumber.ToString(CultureInfo.InvariantCulture));
+        var columnNumber = 1;
+        foreach (var value in values)
+        {
+            writer.WriteStartElement("c");
+            writer.WriteAttributeString("r", ExcelCellReference(columnNumber, rowNumber));
+            writer.WriteAttributeString("t", "inlineStr");
+            writer.WriteStartElement("is");
+            writer.WriteElementString("t", value ?? "");
+            writer.WriteEndElement();
+            writer.WriteEndElement();
+            columnNumber++;
+        }
+        writer.WriteEndElement();
+    }
+
+    private static string ExcelCellReference(int columnNumber, int rowNumber)
+    {
+        var letters = "";
+        while (columnNumber > 0)
+        {
+            columnNumber--;
+            letters = (char)('A' + columnNumber % 26) + letters;
+            columnNumber /= 26;
+        }
+        return letters + rowNumber.ToString(CultureInfo.InvariantCulture);
     }
 
     private async Task<long> CountParquetRowsAsync(string parquetPath, CancellationToken token)

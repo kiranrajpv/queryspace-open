@@ -55,6 +55,13 @@ public sealed class QueryResult
     public long DisplayedRows => Table.Rows.Count;
 }
 
+public enum ExportFormat
+{
+    Csv,
+    Excel,
+    Parquet
+}
+
 public sealed class QualityColumn
 {
     public string Name { get; init; } = "";
