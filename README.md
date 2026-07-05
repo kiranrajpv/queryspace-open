@@ -198,14 +198,11 @@ dotnet run --project .\src\QuerySpace\QuerySpace.csproj -c Release
 
 ## Publish a self-contained Windows folder
 
+Use the installer build script with `-SkipInstaller` when you only need the published application folder:
+
 ```powershell
 cd "C:\Users\kiran\source\queryspace-csharp"
-dotnet publish .\src\QuerySpace\QuerySpace.csproj `
-  -c Release `
-  -r win-x64 `
-  --self-contained true `
-  -p:PublishSingleFile=false `
-  -o .\publish\QuerySpace
+.\scripts\build-installer.ps1 -SkipInstaller
 ```
 
 The app EXE will be:
@@ -216,19 +213,22 @@ C:\Users\kiran\source\queryspace-csharp\publish\QuerySpace\QuerySpace.exe
 
 ## Build installer
 
+The setup/install project is [installer\QuerySpace.iss](installer/QuerySpace.iss). It is built by [scripts\build-installer.ps1](scripts/build-installer.ps1).
+
 Install Inno Setup 6 on the build machine, then run:
 
 ```powershell
 cd "C:\Users\kiran\source\queryspace-csharp"
-dotnet publish .\src\QuerySpace\QuerySpace.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=false -o .\publish\QuerySpace
-& "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" .\installer\QuerySpace.iss
+.\scripts\build-installer.ps1
 ```
 
 Installer output:
 
 ```text
-C:\Users\kiran\source\queryspace-csharp\installer-output\QuerySpace-CSharp-Setup.exe
+C:\Users\kiran\source\queryspace-csharp\installer-output\QuerySpace-Setup-0.1.0.exe
 ```
+
+The installer includes the app files, desktop/start-menu shortcuts, [LICENSE](LICENSE), [README.md](README.md), and [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md). Use `-FrameworkDependent` if your company deployment standard is to install the .NET Desktop Runtime separately instead of creating a self-contained installer.
 
 ## Manual test checklist
 
