@@ -6,16 +6,34 @@
         <Border DockPanel.Dock="Top" Padding="10,8">
             <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                <Button Content="Set Workspace" Click="SetWorkspace_Click" Style="{StaticResource ToolbarButtonStyle}"/>
-                <Button Content="Import CSV/Excel/Parquet" Click="Import_Click" Style="{StaticResource ToolbarButtonStyle}" MinWidth="180"/>
-                <Button Content="Add Connection" Click="AddConnection_Click" Style="{StaticResource ToolbarButtonStyle}" MinWidth="130"/>
-                <Button Content="Extract Base Query" Click="Extract_Click" Style="{StaticResource ToolbarButtonStyle}" MinWidth="150"/>
-                <Button x:Name="StopExtractButton" Content="Stop Extraction" Visibility="Collapsed" Click="StopExtraction_Click" Style="{StaticResource ToolbarButtonStyle}" MinWidth="130"/>
+                <Button Click="SetWorkspace_Click" Style="{StaticResource ToolbarButtonStyle}" MinWidth="44" ToolTip="Set Workspace" AutomationProperties.Name="Set Workspace">
+                    <TextBlock Text="&#xE8B7;" FontFamily="Segoe MDL2 Assets" FontSize="17" Foreground="#F2B134"/>
+                </Button>
+                <Button Click="Import_Click" Style="{StaticResource ToolbarButtonStyle}" MinWidth="44" ToolTip="Import CSV/Excel/Parquet" AutomationProperties.Name="Import CSV/Excel/Parquet">
+                    <TextBlock Text="&#xE896;" FontFamily="Segoe MDL2 Assets" FontSize="17" Foreground="#23965F"/>
+                </Button>
+                <Button Click="AddConnection_Click" Style="{StaticResource ToolbarButtonStyle}" MinWidth="44" ToolTip="Add Connection" AutomationProperties.Name="Add Connection">
+                    <TextBlock Text="&#xE839;" FontFamily="Segoe MDL2 Assets" FontSize="17" Foreground="#00788C"/>
+                </Button>
+                <Button Click="Extract_Click" Style="{StaticResource ToolbarButtonStyle}" MinWidth="44" ToolTip="Extract Base Query" AutomationProperties.Name="Extract Base Query">
+                    <TextBlock Text="&#xE8D4;" FontFamily="Segoe MDL2 Assets" FontSize="17" Foreground="#744DA9"/>
+                </Button>
+                <Button x:Name="StopExtractButton" Visibility="Collapsed" Click="StopExtraction_Click" Style="{StaticResource ToolbarButtonStyle}" MinWidth="44" ToolTip="Stop Extraction" AutomationProperties.Name="Stop Extraction">
+                    <TextBlock Text="&#xE71A;" FontFamily="Segoe MDL2 Assets" FontSize="17" Foreground="#C62828"/>
+                </Button>
                 <Separator Width="12" Opacity="0"/>
-                <Button Content="Save SQL" Click="SaveSql_Click" Style="{StaticResource ToolbarButtonStyle}"/>
-                <Button Content="Export Result" Click="ExportResult_Click" Style="{StaticResource ToolbarButtonStyle}" MinWidth="125"/>
-                <Button Content="Analyze Quality" Click="AnalyzeQuality_Click" Style="{StaticResource ToolbarButtonStyle}" MinWidth="130"/>
-                <Button Content="Analyze Transform" Click="AnalyzeTransform_Click" Style="{StaticResource ToolbarButtonStyle}" MinWidth="145"/>
+                <Button Click="SaveSql_Click" Style="{StaticResource ToolbarButtonStyle}" MinWidth="44" ToolTip="Save SQL" AutomationProperties.Name="Save SQL">
+                    <TextBlock Text="&#xE74E;" FontFamily="Segoe MDL2 Assets" FontSize="17" Foreground="#2B77D2"/>
+                </Button>
+                <Button Click="ExportResult_Click" Style="{StaticResource ToolbarButtonStyle}" MinWidth="44" ToolTip="Export Result" AutomationProperties.Name="Export Result">
+                    <TextBlock Text="&#xE898;" FontFamily="Segoe MDL2 Assets" FontSize="17" Foreground="#23965F"/>
+                </Button>
+                <Button Click="AnalyzeQuality_Click" Style="{StaticResource ToolbarButtonStyle}" MinWidth="44" ToolTip="Analyze Quality" AutomationProperties.Name="Analyze Quality">
+                    <TextBlock Text="&#xE721;" FontFamily="Segoe MDL2 Assets" FontSize="17" Foreground="#744DA9"/>
+                </Button>
+                <Button Click="AnalyzeTransform_Click" Style="{StaticResource ToolbarButtonStyle}" MinWidth="44" ToolTip="Analyze Transform" AutomationProperties.Name="Analyze Transform">
+                    <TextBlock Text="&#xE9D9;" FontFamily="Segoe MDL2 Assets" FontSize="17" Foreground="#744DA9"/>
+                </Button>
             </StackPanel>
             </ScrollViewer>
         </Border>
@@ -85,7 +103,9 @@
                 <Border Grid.Row="0" Padding="10,8">
                     <DockPanel LastChildFill="False">
                         <TextBlock Text="Query" FontWeight="SemiBold" VerticalAlignment="Center" DockPanel.Dock="Left" Margin="0,0,18,0"/>
-                        <Button Content="Run SQL" Click="RunSql_Click" DockPanel.Dock="Left" Style="{StaticResource PrimaryToolbarButtonStyle}" Margin="0,0,14,0"/>
+                        <Button Click="RunSql_Click" DockPanel.Dock="Left" Style="{StaticResource PrimaryToolbarButtonStyle}" Margin="0,0,14,0" MinWidth="44" ToolTip="Run SQL" AutomationProperties.Name="Run SQL">
+                            <TextBlock Text="&#xE768;" FontFamily="Segoe MDL2 Assets" FontSize="17" Foreground="#23965F"/>
+                        </Button>
                         <TextBlock Text="Use:" VerticalAlignment="Center" DockPanel.Dock="Left" Margin="0,0,6,0"/>
                         <ComboBox x:Name="UsageCombo" Width="130" MinHeight="32" SelectedIndex="0" DockPanel.Dock="Left" Margin="0,0,18,0">
                             <ComboBoxItem>Memory</ComboBoxItem>
