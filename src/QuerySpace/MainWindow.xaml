@@ -60,6 +60,9 @@
                         </TreeView.ContextMenu>
                     </TreeView>
                 </TabItem>
+                <TabItem Header="Templates">
+                    <TreeView x:Name="TemplatesTree" MouseDoubleClick="TemplatesTree_DoubleClick"/>
+                </TabItem>
                 <TabItem Header="Connections">
                     <TreeView x:Name="ConnectionsTree" MouseDoubleClick="ConnectionsTree_DoubleClick">
                         <TreeView.ContextMenu>

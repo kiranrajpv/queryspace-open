@@ -315,6 +315,15 @@ public partial class MainWindow : Window
         }
     }
 
+    private void TemplatesTree_DoubleClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        if (SelectedTreeValue(TemplatesTree) is string path && File.Exists(path))
+        {
+            SqlEditor.Text = File.ReadAllText(path);
+            SetStatus($"Loaded template {Path.GetFileName(path)}");
+        }
+    }
+
     private void RenameScript_Click(object sender, RoutedEventArgs e)
     {
         if (SelectedTreeValue(ScriptsTree) is not string path || !File.Exists(path)) return;
@@ -410,6 +419,11 @@ public partial class MainWindow : Window
         {
             ScriptsTree.Items.Add(new TreeViewItem { Header = Path.GetFileName(path), Tag = path });
         }
+        TemplatesTree.Items.Clear();
+        foreach (var path in ListTemplateScripts())
+        {
+            TemplatesTree.Items.Add(new TreeViewItem { Header = Path.GetFileNameWithoutExtension(path), Tag = path });
+        }
         ConnectionsTree.Items.Clear();
         foreach (var connection in connections.OrderBy(c => c.Name))
         {
@@ -429,6 +443,14 @@ public partial class MainWindow : Window
     }
 
     private static object? SelectedTreeValue(TreeView tree) => (tree.SelectedItem as TreeViewItem)?.Tag;
+
+    private static IEnumerable<string> ListTemplateScripts()
+    {
+        var templateFolder = Path.Combine(AppContext.BaseDirectory, "Templates");
+        return Directory.Exists(templateFolder)
+            ? Directory.EnumerateFiles(templateFolder, "*.sql").OrderBy(Path.GetFileName)
+            : [];
+    }
 
     private static string? Prompt(string title, string label, string defaultValue)
     {

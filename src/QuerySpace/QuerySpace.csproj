@@ -30,6 +30,7 @@
 
   <ItemGroup>
     <None Include="Assets\QuerySpace.ico" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Templates\*.sql" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

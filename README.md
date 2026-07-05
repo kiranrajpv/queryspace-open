@@ -10,6 +10,7 @@ The purpose of this version is to keep the same user workflow while making packa
 - Workspace folder selection.
 - Local dataset explorer.
 - SQL scripts explorer.
+- Built-in SQL Templates explorer for Extract, Transform/Pre-Load, and Post-Load validation starting points.
 - Connections explorer.
 - Import CSV, Excel, or Parquet into workspace-managed Parquet datasets.
 - Normalize common Excel/CSV null markers such as `#N/A`, `#VALUE!`, `#REF!`, `#DIV/0!`, `NULL`, `N/A`, and blanks.
@@ -40,6 +41,7 @@ The purpose of this version is to keep the same user workflow while making packa
 ```text
 src\QuerySpace\        WPF application source
 src\QuerySpace\Assets  QuerySpace icon
+src\QuerySpace\Templates Built-in SQL templates copied into the published app
 installer\             Inno Setup installer script
 ```
 
@@ -234,6 +236,16 @@ The installer includes the app files, desktop/start-menu shortcuts, [LICENSE](LI
 ## SAP Material transformation analysis from tagged SQL
 
 Run a DuckDB query that returns source/ECC columns, transformed/pre-load columns, optional cross-reference columns, and optional MDG post-load columns. Add tags as SQL comments, then click **Analyze Transform**.
+
+QuerySpace includes three built-in templates in the **Templates** tab:
+
+| Template | Use it for |
+|---|---|
+| `01_extract_base_query` | Starting point for extracting ECC/SAP source data through **Extract Base Query**. |
+| `02_transform_preload_analysis` | Compare ECC extract rows to transformed/pre-load rows and validate cross-reference usage. |
+| `03_post_load_validation` | Compare ECC source, transformed/pre-load, cross-reference, and S/4 MDG post-load rows. |
+
+Double-click a template to load it into the Query editor, then replace dataset/table/column names with your project names.
 
 Useful tags:
 
