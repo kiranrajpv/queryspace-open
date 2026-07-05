@@ -29,7 +29,7 @@
                     <TextBlock Text="&#xE898;" FontFamily="Segoe MDL2 Assets" FontSize="17" Foreground="#23965F"/>
                 </Button>
                 <Button Click="AnalyzeQuality_Click" Style="{StaticResource ToolbarButtonStyle}" MinWidth="44" ToolTip="Analyze Quality" AutomationProperties.Name="Analyze Quality">
-                    <TextBlock Text="&#xE721;" FontFamily="Segoe MDL2 Assets" FontSize="17" Foreground="#744DA9"/>
+                    <TextBlock Text="&#xE73E;" FontFamily="Segoe MDL2 Assets" FontSize="17" Foreground="#744DA9"/>
                 </Button>
                 <Button Click="AnalyzeTransform_Click" Style="{StaticResource ToolbarButtonStyle}" MinWidth="44" ToolTip="Analyze Transform" AutomationProperties.Name="Analyze Transform">
                     <TextBlock Text="&#xE9D9;" FontFamily="Segoe MDL2 Assets" FontSize="17" Foreground="#744DA9"/>
