@@ -31,20 +31,41 @@ function Read-ProjectVersion {
 }
 
 function Find-InnoCompiler {
-    $candidates = @(
-        (Join-Path ${env:ProgramFiles(x86)} "Inno Setup 6\ISCC.exe"),
-        (Join-Path $env:ProgramFiles "Inno Setup 6\ISCC.exe")
-    )
-
-    foreach ($candidate in $candidates) {
-        if ($candidate -and (Test-Path -LiteralPath $candidate)) {
-            return $candidate
-        }
-    }
+    $candidates = New-Object System.Collections.Generic.List[string]
 
     $fromPath = Get-Command "ISCC.exe" -ErrorAction SilentlyContinue
     if ($fromPath) {
-        return $fromPath.Source
+        $candidates.Add($fromPath.Source)
+    }
+
+    $programFilesX86 = [Environment]::GetFolderPath([Environment+SpecialFolder]::ProgramFilesX86)
+    $programFiles = [Environment]::GetFolderPath([Environment+SpecialFolder]::ProgramFiles)
+    $localAppData = [Environment]::GetFolderPath([Environment+SpecialFolder]::LocalApplicationData)
+
+    foreach ($root in @($programFilesX86, $programFiles, $localAppData)) {
+        if (-not [string]::IsNullOrWhiteSpace($root)) {
+            $candidates.Add((Join-Path $root "Inno Setup 6\ISCC.exe"))
+            $candidates.Add((Join-Path $root "Programs\Inno Setup 6\ISCC.exe"))
+        }
+    }
+
+    foreach ($registryPath in @(
+        "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Inno Setup 6_is1",
+        "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\Inno Setup 6_is1",
+        "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Inno Setup 6_is1"
+    )) {
+        if (Test-Path -LiteralPath $registryPath) {
+            $installLocation = (Get-ItemProperty -LiteralPath $registryPath -ErrorAction SilentlyContinue).InstallLocation
+            if (-not [string]::IsNullOrWhiteSpace($installLocation)) {
+                $candidates.Add((Join-Path $installLocation "ISCC.exe"))
+            }
+        }
+    }
+
+    foreach ($candidate in ($candidates | Select-Object -Unique)) {
+        if ($candidate -and (Test-Path -LiteralPath $candidate)) {
+            return $candidate
+        }
     }
 
     return $null
@@ -59,6 +80,14 @@ Write-Host "Configuration: $Configuration"
 Write-Host "Runtime: $Runtime"
 Write-Host "Version: $version"
 Write-Host "Self-contained: $selfContained"
+
+if (-not $SkipInstaller) {
+    $iscc = Find-InnoCompiler
+    if (-not $iscc) {
+        throw "Inno Setup 6 compiler was not found. Install Inno Setup 6 from https://jrsoftware.org/isinfo.php, add ISCC.exe to PATH, or rerun with -SkipInstaller to only publish the app folder."
+    }
+    Write-Host "Inno Setup compiler: $iscc"
+}
 
 dotnet restore $solutionPath
 
@@ -84,11 +113,6 @@ if ($SkipInstaller) {
     Write-Host "Published application folder:"
     Write-Host $publishDir
     exit 0
-}
-
-$iscc = Find-InnoCompiler
-if (-not $iscc) {
-    throw "Inno Setup 6 compiler was not found. Install Inno Setup 6, or rerun with -SkipInstaller to only publish the app folder."
 }
 
 New-Item -ItemType Directory -Path $installerOutputDir -Force | Out-Null
