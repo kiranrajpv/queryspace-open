@@ -627,7 +627,17 @@ public partial class MainWindow : Window
         RefreshExplorer();
     }
 
-    private void ConnectionsTree_DoubleClick(object sender, System.Windows.Input.MouseButtonEventArgs e) => OpenConnectionTreeItem();
+    private void ConnectionsTree_PreviewMouseButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        SelectTreeItemFromEvent(e);
+    }
+
+    private void ConnectionsTree_DoubleClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        SelectTreeItemFromEvent(e);
+        OpenConnectionTreeItem();
+    }
+
     private void ConnectionOpen_Click(object sender, RoutedEventArgs e) => OpenConnectionTreeItem();
 
     private void ConnectionDelete_Click(object sender, RoutedEventArgs e)
@@ -913,6 +923,21 @@ public partial class MainWindow : Window
     }
 
     private static object? SelectedTreeValue(TreeView tree) => (tree.SelectedItem as TreeViewItem)?.Tag;
+
+    private static void SelectTreeItemFromEvent(RoutedEventArgs e)
+    {
+        if (e.OriginalSource is not DependencyObject source) return;
+
+        for (var current = source; current != null; current = VisualTreeHelper.GetParent(current))
+        {
+            if (current is TreeViewItem item)
+            {
+                item.IsSelected = true;
+                item.Focus();
+                return;
+            }
+        }
+    }
 
     private StackPanel ScriptTreeHeader(string path)
     {

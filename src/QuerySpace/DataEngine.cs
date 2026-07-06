@@ -313,18 +313,11 @@ public sealed class DataEngine
         }
         catch (OperationCanceledException)
         {
-            _workspace.RecordExtractQuery(request.Connection.Id, null, name, request.Sql, null, "cancelled");
             throw;
         }
         catch (Exception ex) when (IsSqlServerUntrustedCertificateError(ex))
         {
-            _workspace.RecordExtractQuery(request.Connection.Id, null, name, request.Sql, null, "failed");
             throw new InvalidOperationException(SqlServerCertificateHelp + "\n\n" + SqlServerConnectionDiagnostic(request.Connection.Config), ex);
-        }
-        catch
-        {
-            _workspace.RecordExtractQuery(request.Connection.Id, null, name, request.Sql, null, "failed");
-            throw;
         }
         finally
         {

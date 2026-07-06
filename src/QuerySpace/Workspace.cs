@@ -165,24 +165,76 @@ public sealed class Workspace
     {
         lock (_syncRoot)
         {
+            if (!status.Equals("completed", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException("Only successful extract queries are saved in the Connections explorer.");
+            }
+
             var folder = Path.Combine(ScriptsFolder, "connections", connectionId);
             Directory.CreateDirectory(folder);
             var name = SafeName(datasetName);
             var path = Path.Combine(folder, name + ".sql");
             File.WriteAllText(path, sql);
-            var query = new ExtractQueryInfo
+
+            var query = State.ExtractQueries.FirstOrDefault(q =>
+                q.ConnectionId == connectionId &&
+                SafeName(q.Name).Equals(name, StringComparison.OrdinalIgnoreCase));
+
+            if (query == null)
             {
-                ConnectionId = connectionId,
-                DatasetId = datasetId,
-                Name = name,
-                SqlPath = path,
-                RowCount = rowCount,
-                Status = status
-            };
-            State.ExtractQueries.Add(query);
+                query = new ExtractQueryInfo
+                {
+                    ConnectionId = connectionId,
+                    Name = name,
+                    SqlPath = path
+                };
+                State.ExtractQueries.Add(query);
+            }
+
+            query.DatasetId = datasetId;
+            query.Name = name;
+            query.SqlPath = path;
+            query.RowCount = rowCount;
+            query.Status = "completed";
+            query.CreatedAt = DateTime.Now;
+
+            NormalizeExtractQueriesLocked();
             Save();
             return query;
         }
+    }
+
+    private void NormalizeExtractQueriesLocked()
+    {
+        var keep = State.ExtractQueries
+            .Where(q =>
+                q.Status.Equals("completed", StringComparison.OrdinalIgnoreCase) &&
+                !string.IsNullOrWhiteSpace(q.SqlPath) &&
+                File.Exists(q.SqlPath))
+            .GroupBy(q => (q.ConnectionId, Name: SafeName(q.Name)))
+            .Select(g => g.OrderByDescending(q => q.CreatedAt).First())
+            .ToList();
+
+        if (keep.Count == State.ExtractQueries.Count &&
+            keep.Select(q => q.Id).OrderBy(id => id).SequenceEqual(State.ExtractQueries.Select(q => q.Id).OrderBy(id => id)))
+        {
+            return;
+        }
+
+        var keepPaths = keep
+            .Select(q => Path.GetFullPath(q.SqlPath))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var query in State.ExtractQueries.Except(keep).ToList())
+        {
+            if (!string.IsNullOrWhiteSpace(query.SqlPath) &&
+                !keepPaths.Contains(Path.GetFullPath(query.SqlPath)))
+            {
+                DeleteWorkspaceFileIfExists(query.SqlPath, ScriptsFolder);
+            }
+        }
+
+        State.ExtractQueries = keep.OrderBy(q => q.Name).ToList();
     }
 
     public void DeleteExtractQuery(ExtractQueryInfo query)
@@ -224,6 +276,8 @@ public sealed class Workspace
     {
         lock (_syncRoot)
         {
+            NormalizeExtractQueriesLocked();
+            Save();
             return State.ExtractQueries.ToList();
         }
     }
@@ -234,6 +288,11 @@ public sealed class Workspace
         State = File.Exists(MetadataPath)
             ? JsonSerializer.Deserialize<WorkspaceState>(File.ReadAllText(MetadataPath)) ?? new WorkspaceState()
             : new WorkspaceState();
+        lock (_syncRoot)
+        {
+            NormalizeExtractQueriesLocked();
+            Save();
+        }
     }
 
     private void EnsureFolders()

@@ -83,7 +83,10 @@
                     <TreeView x:Name="TemplatesTree" MouseDoubleClick="TemplatesTree_DoubleClick"/>
                 </TabItem>
                 <TabItem Header="Connections">
-                    <TreeView x:Name="ConnectionsTree" MouseDoubleClick="ConnectionsTree_DoubleClick">
+                    <TreeView x:Name="ConnectionsTree"
+                              PreviewMouseLeftButtonDown="ConnectionsTree_PreviewMouseButtonDown"
+                              PreviewMouseRightButtonDown="ConnectionsTree_PreviewMouseButtonDown"
+                              MouseDoubleClick="ConnectionsTree_DoubleClick">
                         <TreeView.ContextMenu>
                             <ContextMenu>
                                 <MenuItem Header="Edit connection / Open extract query" Click="ConnectionOpen_Click"/>
