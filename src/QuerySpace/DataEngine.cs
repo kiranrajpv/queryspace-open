@@ -836,10 +836,34 @@ public sealed class DataEngine
     {
         await using var connection = OpenDatabaseConnection(new SavedConnection { Kind = kind, Config = config }, password);
         await connection.OpenAsync(token);
+        await ExecuteConnectionTestQueryAsync(connection, kind, token);
+    }
+
+    private static async Task ExecuteConnectionTestQueryAsync(DbConnection connection, string kind, CancellationToken token)
+    {
+        try
+        {
+            await ExecuteScalarTestQueryAsync(connection, "select 1", token);
+        }
+        catch (OdbcException ex) when (kind.Equals("odbc", StringComparison.OrdinalIgnoreCase) && IsHanaOdbcSyntaxError(ex))
+        {
+            await ExecuteScalarTestQueryAsync(connection, "select 1 from dummy", token);
+        }
+    }
+
+    private static async Task ExecuteScalarTestQueryAsync(DbConnection connection, string sql, CancellationToken token)
+    {
         await using var command = connection.CreateCommand();
-        command.CommandText = "select 1";
+        command.CommandText = sql;
         command.CommandTimeout = 15;
         _ = await command.ExecuteScalarAsync(token);
+    }
+
+    private static bool IsHanaOdbcSyntaxError(OdbcException ex)
+    {
+        if (ex.Errors.Cast<OdbcError>().Any(error => error.NativeError == 257)) return true;
+        return ex.Message.Contains("syntax error", StringComparison.OrdinalIgnoreCase) &&
+               ex.Message.Contains("257", StringComparison.OrdinalIgnoreCase);
     }
 
     public const string SqlServerCertificateHelp =
