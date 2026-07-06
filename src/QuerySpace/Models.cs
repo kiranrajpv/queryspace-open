@@ -110,6 +110,27 @@ public sealed class DatasetDetails
     public List<ParquetColumnInfo> Columns { get; init; } = new();
 }
 
+public sealed class InMemoryObjectInfo
+{
+    public string Name { get; init; } = "";
+    public string Schema { get; init; } = "main";
+    public string ObjectType { get; init; } = "";
+    public string Detail { get; init; } = "";
+    public long? RowCount { get; init; }
+    public bool IsTemporary { get; init; }
+    public string DisplayName => string.IsNullOrWhiteSpace(Detail) ? Name : $"{Name}  {Detail}";
+    public string QualifiedName => string.IsNullOrWhiteSpace(Schema) || Schema.Equals("main", StringComparison.OrdinalIgnoreCase)
+        ? Name
+        : $"{Schema}.{Name}";
+}
+
+public sealed class InMemoryObjectDetails
+{
+    public InMemoryObjectInfo Object { get; init; } = new();
+    public List<ParquetColumnInfo> Columns { get; init; } = new();
+    public string? Definition { get; init; }
+}
+
 public sealed class TransformationAnalysisReport
 {
     public string AnalysisName { get; init; } = "";

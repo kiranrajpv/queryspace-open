@@ -91,6 +91,29 @@
                         </TreeView.ContextMenu>
                     </TreeView>
                 </TabItem>
+                <TabItem Header="In-Memory">
+                    <DockPanel>
+                        <TextBlock DockPanel.Dock="Top"
+                                   Text="Session-only DuckDB objects. Export important tables before closing QuerySpace."
+                                   TextWrapping="Wrap"
+                                   Margin="6"
+                                   Foreground="{DynamicResource {x:Static SystemColors.GrayTextBrushKey}}"/>
+                        <TreeView x:Name="MemoryTree" MouseDoubleClick="MemoryTree_DoubleClick">
+                            <TreeView.ContextMenu>
+                                <ContextMenu>
+                                    <MenuItem Header="Preview" Click="MemoryPreview_Click"/>
+                                    <MenuItem Header="Information / Schema" Click="MemoryInfo_Click"/>
+                                    <MenuItem Header="Generate SELECT" Click="MemoryGenerateSelect_Click"/>
+                                    <MenuItem Header="Export" Click="MemoryExport_Click"/>
+                                    <Separator/>
+                                    <MenuItem Header="Drop Object" Click="MemoryDrop_Click"/>
+                                    <Separator/>
+                                    <MenuItem Header="Refresh" Click="MemoryRefresh_Click"/>
+                                </ContextMenu>
+                            </TreeView.ContextMenu>
+                        </TreeView>
+                    </DockPanel>
+                </TabItem>
             </TabControl>
             <GridSplitter Grid.Column="1" Width="5" HorizontalAlignment="Stretch"/>
             <Grid Grid.Column="2">

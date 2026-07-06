@@ -118,7 +118,13 @@ public sealed class DataEngine
                 }
                 catch
                 {
-                    if (i == statements.Count - 1) throw;
+                    if (i == statements.Count - 1)
+                    {
+                        command.CommandText = statements[i];
+                        command.ExecuteNonQuery();
+                        last = new DataTable();
+                        continue;
+                    }
                     command.ExecuteNonQuery();
                 }
             }
@@ -233,6 +239,49 @@ public sealed class DataEngine
         }, token);
     }
 
+    public async Task ExportInMemoryObjectAsync(InMemoryObjectInfo obj, string outputPath, ExportFormat format, IProgress<string>? progress, CancellationToken token)
+    {
+        await _memoryConnectionLock.WaitAsync(token);
+        try
+        {
+            await Task.Run(() =>
+            {
+                token.ThrowIfCancellationRequested();
+                var partialPath = outputPath + ".partial";
+                if (File.Exists(partialPath)) File.Delete(partialPath);
+                try
+                {
+                    progress?.Report($"Exporting {obj.Name}...");
+                    var sql = $"select * from {QuoteQualifiedName(obj.Schema, obj.Name)}";
+                    switch (format)
+                    {
+                        case ExportFormat.Csv:
+                            CopyQueryToFile(_memoryConnection, sql, partialPath, "csv");
+                            break;
+                        case ExportFormat.Parquet:
+                            CopyQueryToFile(_memoryConnection, sql, partialPath, "parquet");
+                            break;
+                        case ExportFormat.Excel:
+                            WriteQueryToExcel(_memoryConnection, sql, partialPath, progress, token);
+                            break;
+                        default:
+                            throw new InvalidOperationException($"Unsupported export format: {format}");
+                    }
+                    token.ThrowIfCancellationRequested();
+                    File.Move(partialPath, outputPath, true);
+                }
+                finally
+                {
+                    if (File.Exists(partialPath)) File.Delete(partialPath);
+                }
+            }, token);
+        }
+        finally
+        {
+            _memoryConnectionLock.Release();
+        }
+    }
+
     public async Task<DatasetInfo> ExtractAsync(ExtractRequest request, IProgress<ExtractProgress>? progress, CancellationToken token)
     {
         var name = _workspace.EnsureDatasetNameAvailable(request.DatasetName);
@@ -308,6 +357,159 @@ public sealed class DataEngine
             }
         }, token);
         return details;
+    }
+
+    public async Task<IReadOnlyList<InMemoryObjectInfo>> GetInMemoryObjectsAsync(CancellationToken token)
+    {
+        await _memoryConnectionLock.WaitAsync(token);
+        try
+        {
+            return await Task.Run(() =>
+            {
+                token.ThrowIfCancellationRequested();
+                RegisterDatasetViews(_memoryConnection);
+                var datasetAliases = _workspace.SnapshotDatasets()
+                    .Select(d => Workspace.SafeName(d.Name))
+                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
+                var objects = new List<InMemoryObjectInfo>();
+
+                using (var command = _memoryConnection.CreateCommand())
+                {
+                    command.CommandText =
+                        "select table_schema, table_name, table_type " +
+                        "from information_schema.tables " +
+                        "where table_schema not in ('information_schema', 'pg_catalog') " +
+                        "order by table_schema, table_type, table_name";
+                    using var reader = command.ExecuteReader();
+                    while (reader.Read())
+                    {
+                        token.ThrowIfCancellationRequested();
+                        var schema = reader.GetValue(0)?.ToString() ?? "main";
+                        var name = reader.GetValue(1)?.ToString() ?? "";
+                        var tableType = reader.GetValue(2)?.ToString() ?? "";
+                        var isView = tableType.Contains("VIEW", StringComparison.OrdinalIgnoreCase);
+                        if (isView && datasetAliases.Contains(name)) continue;
+
+                        var isTemporary = schema.Contains("temp", StringComparison.OrdinalIgnoreCase) ||
+                                          tableType.Contains("TEMP", StringComparison.OrdinalIgnoreCase);
+                        long? rowCount = null;
+                        if (!isView)
+                        {
+                            rowCount = TryCountObject(_memoryConnection, schema, name);
+                        }
+
+                        objects.Add(new InMemoryObjectInfo
+                        {
+                            Schema = schema,
+                            Name = name,
+                            ObjectType = isView
+                                ? isTemporary ? "Temporary View" : "View"
+                                : isTemporary ? "Temporary Table" : "Table",
+                            IsTemporary = isTemporary,
+                            RowCount = rowCount,
+                            Detail = rowCount.HasValue ? $"({rowCount.Value:N0} rows)" : ""
+                        });
+                    }
+                }
+
+                AddOptionalMetadataRows(_memoryConnection, objects, "Macros / Functions",
+                    "select coalesce(schema_name, 'main') as schema_name, function_name, function_type " +
+                    "from duckdb_functions() " +
+                    "where function_type ilike '%macro%' and coalesce(internal, false) = false " +
+                    "order by schema_name, function_name",
+                    "function_name", "schema_name", "function_type", token);
+
+                AddOptionalMetadataRows(_memoryConnection, objects, "Index",
+                    "select coalesce(schema_name, 'main') as schema_name, index_name, table_name " +
+                    "from duckdb_indexes() order by schema_name, index_name",
+                    "index_name", "schema_name", "table_name", token);
+
+                AddOptionalMetadataRows(_memoryConnection, objects, "Sequence",
+                    "select coalesce(schema_name, 'main') as schema_name, sequence_name, '' as detail " +
+                    "from duckdb_sequences() order by schema_name, sequence_name",
+                    "sequence_name", "schema_name", "detail", token);
+
+                AddOptionalMetadataRows(_memoryConnection, objects, "Schema",
+                    "select schema_name, schema_name as object_name, '' as detail " +
+                    "from duckdb_schemas() " +
+                    "where schema_name not in ('information_schema', 'pg_catalog') and coalesce(internal, false) = false " +
+                    "order by schema_name",
+                    "object_name", "schema_name", "detail", token);
+
+                return objects
+                    .OrderBy(o => ObjectSortOrder(o.ObjectType))
+                    .ThenBy(o => o.Schema, StringComparer.OrdinalIgnoreCase)
+                    .ThenBy(o => o.Name, StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+            }, token);
+        }
+        finally
+        {
+            _memoryConnectionLock.Release();
+        }
+    }
+
+    public async Task<InMemoryObjectDetails> GetInMemoryObjectDetailsAsync(InMemoryObjectInfo obj, CancellationToken token)
+    {
+        await _memoryConnectionLock.WaitAsync(token);
+        try
+        {
+            return await Task.Run(() =>
+            {
+                token.ThrowIfCancellationRequested();
+                var details = new InMemoryObjectDetails { Object = obj, Definition = TryGetObjectDefinition(_memoryConnection, obj) };
+                if (obj.ObjectType.Contains("Table", StringComparison.OrdinalIgnoreCase) ||
+                    obj.ObjectType.Contains("View", StringComparison.OrdinalIgnoreCase))
+                {
+                    using var command = _memoryConnection.CreateCommand();
+                    command.CommandText = $"describe select * from {QuoteQualifiedName(obj.Schema, obj.Name)}";
+                    using var reader = command.ExecuteReader();
+                    while (reader.Read())
+                    {
+                        details.Columns.Add(new ParquetColumnInfo
+                        {
+                            Name = reader.GetValue(0)?.ToString() ?? "",
+                            Type = reader.GetValue(1)?.ToString() ?? "",
+                            Nullable = reader.FieldCount > 2 ? reader.GetValue(2)?.ToString() ?? "" : ""
+                        });
+                    }
+                }
+                return details;
+            }, token);
+        }
+        finally
+        {
+            _memoryConnectionLock.Release();
+        }
+    }
+
+    public async Task DropInMemoryObjectAsync(InMemoryObjectInfo obj, CancellationToken token)
+    {
+        await _memoryConnectionLock.WaitAsync(token);
+        try
+        {
+            await Task.Run(() =>
+            {
+                token.ThrowIfCancellationRequested();
+                using var command = _memoryConnection.CreateCommand();
+                var qualifiedName = QuoteQualifiedName(obj.Schema, obj.Name);
+                command.CommandText = obj.ObjectType switch
+                {
+                    var t when t.Contains("View", StringComparison.OrdinalIgnoreCase) => $"drop view if exists {qualifiedName}",
+                    var t when t.Contains("Table", StringComparison.OrdinalIgnoreCase) => $"drop table if exists {qualifiedName}",
+                    var t when t.Contains("Macro", StringComparison.OrdinalIgnoreCase) || t.Contains("Function", StringComparison.OrdinalIgnoreCase) => $"drop macro if exists {qualifiedName}",
+                    var t when t.Contains("Index", StringComparison.OrdinalIgnoreCase) => $"drop index if exists {qualifiedName}",
+                    var t when t.Contains("Sequence", StringComparison.OrdinalIgnoreCase) => $"drop sequence if exists {qualifiedName}",
+                    var t when t.Contains("Schema", StringComparison.OrdinalIgnoreCase) => $"drop schema if exists {qualifiedName}",
+                    _ => throw new InvalidOperationException($"Unsupported memory object type: {obj.ObjectType}")
+                };
+                command.ExecuteNonQuery();
+            }, token);
+        }
+        finally
+        {
+            _memoryConnectionLock.Release();
+        }
     }
 
     public QualityReport AnalyzeQuality(DataTable table)
@@ -510,6 +712,113 @@ public sealed class DataEngine
         connection.Open();
         return connection;
     }
+
+    private static long? TryCountObject(DuckDBConnection connection, string schema, string name)
+    {
+        try
+        {
+            using var command = connection.CreateCommand();
+            command.CommandText = $"select count(*) from {QuoteQualifiedName(schema, name)}";
+            return Convert.ToInt64(command.ExecuteScalar(), CultureInfo.InvariantCulture);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static void AddOptionalMetadataRows(
+        DuckDBConnection connection,
+        List<InMemoryObjectInfo> objects,
+        string objectType,
+        string sql,
+        string nameColumn,
+        string schemaColumn,
+        string detailColumn,
+        CancellationToken token)
+    {
+        try
+        {
+            using var command = connection.CreateCommand();
+            command.CommandText = sql;
+            using var reader = command.ExecuteReader();
+            var table = new DataTable();
+            table.Load(reader);
+            foreach (DataRow row in table.Rows)
+            {
+                token.ThrowIfCancellationRequested();
+                var name = Convert.ToString(row[nameColumn], CultureInfo.InvariantCulture) ?? "";
+                if (string.IsNullOrWhiteSpace(name)) continue;
+                var schema = table.Columns.Contains(schemaColumn)
+                    ? Convert.ToString(row[schemaColumn], CultureInfo.InvariantCulture) ?? "main"
+                    : "main";
+                var rawDetail = table.Columns.Contains(detailColumn)
+                    ? Convert.ToString(row[detailColumn], CultureInfo.InvariantCulture) ?? ""
+                    : "";
+                var detail = objectType == "Index" && !string.IsNullOrWhiteSpace(rawDetail)
+                    ? $"on {rawDetail}"
+                    : rawDetail;
+                objects.Add(new InMemoryObjectInfo
+                {
+                    Schema = schema,
+                    Name = name,
+                    ObjectType = objectType,
+                    Detail = detail
+                });
+            }
+        }
+        catch
+        {
+            // Older DuckDB builds may not expose every duckdb_* metadata table. Keep the explorer useful with the objects we can read.
+        }
+    }
+
+    private static string? TryGetObjectDefinition(DuckDBConnection connection, InMemoryObjectInfo obj)
+    {
+        try
+        {
+            var sql = obj.ObjectType switch
+            {
+                var t when t.Contains("View", StringComparison.OrdinalIgnoreCase) =>
+                    "select sql from duckdb_views() where view_name = ?",
+                var t when t.Contains("Table", StringComparison.OrdinalIgnoreCase) =>
+                    "select sql from duckdb_tables() where table_name = ?",
+                var t when t.Contains("Index", StringComparison.OrdinalIgnoreCase) =>
+                    "select sql from duckdb_indexes() where index_name = ?",
+                _ => ""
+            };
+            if (string.IsNullOrWhiteSpace(sql)) return null;
+            using var command = connection.CreateCommand();
+            command.CommandText = sql.Replace("?", $"'{EscapeSqlLiteral(obj.Name)}'");
+            return command.ExecuteScalar()?.ToString();
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static int ObjectSortOrder(string objectType)
+    {
+        if (objectType.Contains("Table", StringComparison.OrdinalIgnoreCase)) return 0;
+        if (objectType.Contains("View", StringComparison.OrdinalIgnoreCase)) return 1;
+        if (objectType.Contains("Macro", StringComparison.OrdinalIgnoreCase) || objectType.Contains("Function", StringComparison.OrdinalIgnoreCase)) return 2;
+        if (objectType.Contains("Index", StringComparison.OrdinalIgnoreCase)) return 3;
+        if (objectType.Contains("Sequence", StringComparison.OrdinalIgnoreCase)) return 4;
+        if (objectType.Contains("Schema", StringComparison.OrdinalIgnoreCase)) return 5;
+        return 99;
+    }
+
+    private static string QuoteQualifiedName(string schema, string name)
+    {
+        if (string.IsNullOrWhiteSpace(schema) || schema.Equals("main", StringComparison.OrdinalIgnoreCase))
+        {
+            return QuoteIdentifier(name);
+        }
+        return $"{QuoteIdentifier(schema)}.{QuoteIdentifier(name)}";
+    }
+
+    private static string QuoteIdentifier(string identifier) => "\"" + identifier.Replace("\"", "\"\"") + "\"";
 
     private static DbConnection OpenDatabaseConnection(SavedConnection connection, string password)
     {
@@ -739,6 +1048,7 @@ public sealed class DataEngine
 
     private static string TrimTrailingSemicolon(string sql) => sql.Trim().TrimEnd(';');
     private static string EscapePath(string path) => path.Replace("\\", "\\\\").Replace("'", "''");
+    private static string EscapeSqlLiteral(string value) => value.Replace("'", "''");
     private static string EscapeCsv(string value) => value.Contains('"') || value.Contains(',') || value.Contains('\n') || value.Contains('\r')
         ? "\"" + value.Replace("\"", "\"\"") + "\""
         : value;

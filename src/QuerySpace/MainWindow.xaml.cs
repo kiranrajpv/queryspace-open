@@ -25,6 +25,7 @@ public partial class MainWindow : Window
         WindowTitleBar.Apply(this);
         _engine = new DataEngine(_workspace);
         RefreshExplorer();
+        _ = RefreshInMemoryExplorerAsync();
         SetStatus("Ready");
     }
 
@@ -187,7 +188,13 @@ public partial class MainWindow : Window
             var result = await Task.Run(() => _engine.ExecuteAsync(sql, previewRows, mode, CancellationToken.None));
             _currentResults = result.Table;
             ResultsGrid.ItemsSource = result.Table.DefaultView;
-            SetStatus($"SQL completed. Displayed {result.DisplayedRows:N0} preview rows.");
+            if (mode.Equals("Memory", StringComparison.OrdinalIgnoreCase))
+            {
+                await RefreshInMemoryExplorerAsync();
+            }
+            SetStatus(mode.Equals("Memory", StringComparison.OrdinalIgnoreCase)
+                ? $"SQL completed. Displayed {result.DisplayedRows:N0} preview rows. In-Memory objects refreshed."
+                : $"SQL completed. Displayed {result.DisplayedRows:N0} preview rows.");
         }
         catch (Exception ex)
         {
@@ -330,6 +337,106 @@ public partial class MainWindow : Window
         }
     }
 
+    private async void MemoryTree_DoubleClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        if (SelectedMemoryObject() is { } obj)
+        {
+            await PreviewMemoryObjectAsync(obj);
+        }
+    }
+
+    private async void MemoryPreview_Click(object sender, RoutedEventArgs e)
+    {
+        if (SelectedMemoryObject() is { } obj) await PreviewMemoryObjectAsync(obj);
+    }
+
+    private async void MemoryInfo_Click(object sender, RoutedEventArgs e)
+    {
+        if (SelectedMemoryObject() is not { } obj) return;
+        try
+        {
+            var details = await _engine.GetInMemoryObjectDetailsAsync(obj, CancellationToken.None);
+            ShowInMemoryObjectInfo(details);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, ex.Message, "In-Memory object information", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    private void MemoryGenerateSelect_Click(object sender, RoutedEventArgs e)
+    {
+        if (SelectedMemoryObject() is not { } obj) return;
+        SqlEditor.Text = MemoryObjectSqlSnippet(obj);
+        UsageCombo.SelectedIndex = 0;
+        SetStatus(CanQueryMemoryObject(obj) ? $"Generated SELECT for {obj.Name}" : $"Generated SQL snippet for {obj.Name}");
+    }
+
+    private async void MemoryExport_Click(object sender, RoutedEventArgs e)
+    {
+        if (SelectedMemoryObject() is not { } obj) return;
+        if (!CanQueryMemoryObject(obj))
+        {
+            MessageBox.Show(this, "Only tables and views can be exported.", "Export In-Memory object");
+            return;
+        }
+        var format = PromptExportFormat();
+        if (!format.HasValue) return;
+        var extension = format.Value switch
+        {
+            ExportFormat.Csv => ".csv",
+            ExportFormat.Excel => ".xlsx",
+            ExportFormat.Parquet => ".parquet",
+            _ => ".dat"
+        };
+        var filter = format.Value switch
+        {
+            ExportFormat.Csv => "CSV files|*.csv",
+            ExportFormat.Excel => "Excel files|*.xlsx",
+            ExportFormat.Parquet => "Parquet files|*.parquet",
+            _ => "All files|*.*"
+        };
+        var dialog = new SaveFileDialog { Filter = filter, InitialDirectory = _workspace.ExportsFolder, FileName = Workspace.SafeName(obj.Name) + extension };
+        if (dialog.ShowDialog(this) != true) return;
+        try
+        {
+            StartExportProgress();
+            SetStatus($"Exporting {obj.Name}...", true);
+            await _engine.ExportInMemoryObjectAsync(obj, dialog.FileName, format.Value, new Progress<string>(m => SetStatus(m, true)), CancellationToken.None);
+            SetStatus($"Exported {obj.Name} to {dialog.FileName}");
+        }
+        catch (Exception ex)
+        {
+            SetStatus("Export failed");
+            MessageBox.Show(this, ex.Message, "Export In-Memory object", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+        finally
+        {
+            StopExtractProgress();
+        }
+    }
+
+    private async void MemoryDrop_Click(object sender, RoutedEventArgs e)
+    {
+        if (SelectedMemoryObject() is not { } obj) return;
+        if (MessageBox.Show(this, $"Drop {obj.ObjectType} \"{obj.QualifiedName}\" from the current memory session?", "Drop In-Memory object", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+        try
+        {
+            await _engine.DropInMemoryObjectAsync(obj, CancellationToken.None);
+            await RefreshInMemoryExplorerAsync();
+            SetStatus($"Dropped {obj.ObjectType} {obj.Name}");
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, ex.Message, "Drop In-Memory object", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    private async void MemoryRefresh_Click(object sender, RoutedEventArgs e)
+    {
+        await RefreshInMemoryExplorerAsync();
+    }
+
     private void RenameScript_Click(object sender, RoutedEventArgs e)
     {
         if (SelectedTreeValue(ScriptsTree) is not string path || !File.Exists(path)) return;
@@ -409,6 +516,174 @@ public partial class MainWindow : Window
         }
     }
 
+    private async Task RefreshInMemoryExplorerAsync()
+    {
+        try
+        {
+            var objects = await _engine.GetInMemoryObjectsAsync(CancellationToken.None);
+            MemoryTree.Items.Clear();
+            var groups = objects
+                .GroupBy(o => MemoryGroupName(o.ObjectType))
+                .OrderBy(g => MemoryGroupSortOrder(g.Key));
+
+            foreach (var group in groups)
+            {
+                var groupItem = new TreeViewItem { Header = TreeHeader(MemoryGroupIcon(group.Key), group.Key), IsExpanded = true };
+                foreach (var obj in group.OrderBy(o => o.Schema).ThenBy(o => o.Name))
+                {
+                    groupItem.Items.Add(new TreeViewItem
+                    {
+                        Header = TreeHeader(MemoryObjectIcon(obj), obj.DisplayName),
+                        Tag = obj
+                    });
+                }
+                MemoryTree.Items.Add(groupItem);
+            }
+
+            if (MemoryTree.Items.Count == 0)
+            {
+                MemoryTree.Items.Add(new TreeViewItem
+                {
+                    Header = TreeHeader(MemoryObjectIcon("Empty"), "No user-created memory objects yet"),
+                    IsEnabled = false
+                });
+            }
+        }
+        catch (Exception ex)
+        {
+            SetStatus("Unable to refresh In-Memory objects");
+            MemoryTree.Items.Clear();
+            MemoryTree.Items.Add(new TreeViewItem
+            {
+                Header = TreeHeader(MemoryObjectIcon("Error"), "Unable to read memory objects: " + ex.Message),
+                IsEnabled = false
+            });
+        }
+    }
+
+    private async Task PreviewMemoryObjectAsync(InMemoryObjectInfo obj)
+    {
+        if (!CanQueryMemoryObject(obj))
+        {
+            MessageBox.Show(this, "Only tables and views can be previewed.", "Preview In-Memory object");
+            return;
+        }
+        try
+        {
+            var sql = MemoryObjectSelectSql(obj);
+            SqlEditor.Text = sql;
+            UsageCombo.SelectedIndex = 0;
+            var previewRows = int.TryParse(PreviewRowsText.Text, out var value) ? value : 1000;
+            SetStatus($"Previewing {obj.Name}...", true);
+            var result = await Task.Run(() => _engine.ExecuteAsync(sql, previewRows, "Memory", CancellationToken.None));
+            _currentResults = result.Table;
+            ResultsGrid.ItemsSource = result.Table.DefaultView;
+            SetStatus($"Previewed {obj.Name}. Displayed {result.DisplayedRows:N0} rows.");
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, ex.Message, "Preview In-Memory object", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    private InMemoryObjectInfo? SelectedMemoryObject() => SelectedTreeValue(MemoryTree) as InMemoryObjectInfo;
+
+    private static bool CanQueryMemoryObject(InMemoryObjectInfo obj) =>
+        obj.ObjectType.Contains("Table", StringComparison.OrdinalIgnoreCase) ||
+        obj.ObjectType.Contains("View", StringComparison.OrdinalIgnoreCase);
+
+    private static string MemoryObjectSelectSql(InMemoryObjectInfo obj) =>
+        $"select * from {QuoteMemoryQualifiedName(obj.Schema, obj.Name)} limit 100;";
+
+    private static string MemoryObjectSqlSnippet(InMemoryObjectInfo obj)
+    {
+        if (CanQueryMemoryObject(obj)) return MemoryObjectSelectSql(obj);
+        if (obj.ObjectType.Contains("Macro", StringComparison.OrdinalIgnoreCase) ||
+            obj.ObjectType.Contains("Function", StringComparison.OrdinalIgnoreCase))
+        {
+            return $"-- Use this macro/function in a SQL expression.\n-- Adjust arguments as needed.\nselect {QuoteMemoryQualifiedName(obj.Schema, obj.Name)}(' sample ');";
+        }
+        return $"-- {obj.ObjectType} \"{obj.QualifiedName}\" cannot be selected directly.\n-- Use Information / Schema for details.";
+    }
+
+    private static string QuoteMemoryQualifiedName(string schema, string name)
+    {
+        if (string.IsNullOrWhiteSpace(schema) || schema.Equals("main", StringComparison.OrdinalIgnoreCase))
+        {
+            return QuoteMemoryIdentifier(name);
+        }
+        return $"{QuoteMemoryIdentifier(schema)}.{QuoteMemoryIdentifier(name)}";
+    }
+
+    private static string QuoteMemoryIdentifier(string identifier) => "\"" + identifier.Replace("\"", "\"\"") + "\"";
+
+    private void ShowInMemoryObjectInfo(InMemoryObjectDetails details)
+    {
+        var window = new Window
+        {
+            Title = "In-Memory object information",
+            Width = 720,
+            Height = 480,
+            MinWidth = 560,
+            MinHeight = 360,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            Owner = this
+        };
+        WindowTitleBar.Apply(window);
+
+        var root = new DockPanel { Margin = new Thickness(14) };
+        var summary = new TextBlock
+        {
+            Text = $"{details.Object.ObjectType}: {details.Object.QualifiedName}" +
+                   (details.Object.RowCount.HasValue ? $" ({details.Object.RowCount.Value:N0} rows)" : ""),
+            FontWeight = FontWeights.SemiBold,
+            Margin = new Thickness(0, 0, 0, 10)
+        };
+        DockPanel.SetDock(summary, Dock.Top);
+        root.Children.Add(summary);
+
+        if (!string.IsNullOrWhiteSpace(details.Definition))
+        {
+            var definition = new TextBox
+            {
+                Text = details.Definition,
+                IsReadOnly = true,
+                AcceptsReturn = true,
+                TextWrapping = TextWrapping.Wrap,
+                MaxHeight = 90,
+                VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+                Margin = new Thickness(0, 0, 0, 10)
+            };
+            DockPanel.SetDock(definition, Dock.Top);
+            root.Children.Add(definition);
+        }
+
+        var grid = new DataGrid
+        {
+            ItemsSource = details.Columns.Select(c => new { c.Name, c.Type, c.Nullable }).ToList(),
+            AutoGenerateColumns = true,
+            IsReadOnly = true
+        };
+        root.Children.Add(grid);
+
+        var close = new Button
+        {
+            Content = "Close",
+            IsCancel = true,
+            MinWidth = 96,
+            MinHeight = 32,
+            Padding = new Thickness(12, 6, 12, 6),
+            HorizontalAlignment = HorizontalAlignment.Right,
+            Margin = new Thickness(0, 12, 0, 0)
+        };
+        close.Click += (_, _) => window.Close();
+        DockPanel.SetDock(close, Dock.Bottom);
+        root.Children.Add(close);
+
+        window.Content = root;
+        window.ShowDialog();
+    }
+
     private void RefreshExplorer()
     {
         WorkspaceText.Text = $"Workspace: {_workspace.Root}";
@@ -453,6 +728,7 @@ public partial class MainWindow : Window
             }
             ConnectionsTree.Items.Add(item);
         }
+        _ = RefreshInMemoryExplorerAsync();
     }
 
     private void SetStatus(string message, bool busy = false)
@@ -931,6 +1207,137 @@ public partial class MainWindow : Window
         });
         return icon;
     }
+
+    private static string MemoryGroupName(string objectType)
+    {
+        if (objectType.Contains("Table", StringComparison.OrdinalIgnoreCase)) return "Tables";
+        if (objectType.Contains("View", StringComparison.OrdinalIgnoreCase)) return "Views";
+        if (objectType.Contains("Macro", StringComparison.OrdinalIgnoreCase) || objectType.Contains("Function", StringComparison.OrdinalIgnoreCase)) return "Macros / Functions";
+        if (objectType.Contains("Index", StringComparison.OrdinalIgnoreCase)) return "Indexes";
+        if (objectType.Contains("Sequence", StringComparison.OrdinalIgnoreCase)) return "Sequences";
+        if (objectType.Contains("Schema", StringComparison.OrdinalIgnoreCase)) return "Schemas";
+        return "Other";
+    }
+
+    private static int MemoryGroupSortOrder(string group) => group switch
+    {
+        "Tables" => 0,
+        "Views" => 1,
+        "Macros / Functions" => 2,
+        "Indexes" => 3,
+        "Sequences" => 4,
+        "Schemas" => 5,
+        _ => 99
+    };
+
+    private static UIElement MemoryGroupIcon(string group) => group switch
+    {
+        "Tables" => MemoryObjectIcon("Table"),
+        "Views" => MemoryObjectIcon("View"),
+        "Macros / Functions" => MemoryObjectIcon("Macro"),
+        "Indexes" => MemoryObjectIcon("Index"),
+        "Sequences" => MemoryObjectIcon("Sequence"),
+        "Schemas" => MemoryObjectIcon("Schema"),
+        _ => MemoryObjectIcon("Other")
+    };
+
+    private static UIElement MemoryObjectIcon(InMemoryObjectInfo obj) => MemoryObjectIcon(obj.ObjectType);
+
+    private static Grid MemoryObjectIcon(string objectType)
+    {
+        if (objectType.Contains("Table", StringComparison.OrdinalIgnoreCase)) return TableGridIcon();
+        if (objectType.Contains("View", StringComparison.OrdinalIgnoreCase)) return EyeIcon();
+        if (objectType.Contains("Macro", StringComparison.OrdinalIgnoreCase) || objectType.Contains("Function", StringComparison.OrdinalIgnoreCase)) return FunctionIcon();
+        if (objectType.Contains("Index", StringComparison.OrdinalIgnoreCase)) return KeyIcon();
+        if (objectType.Contains("Sequence", StringComparison.OrdinalIgnoreCase)) return HashIcon();
+        if (objectType.Contains("Schema", StringComparison.OrdinalIgnoreCase)) return FolderIcon();
+        if (objectType.Contains("Error", StringComparison.OrdinalIgnoreCase)) return BadgeIcon("!", Color.FromRgb(198, 40, 40), Color.FromRgb(255, 235, 238));
+        if (objectType.Contains("Empty", StringComparison.OrdinalIgnoreCase)) return BadgeIcon("i", Color.FromRgb(88, 88, 88), Color.FromRgb(245, 245, 245));
+        return BadgeIcon("•", Color.FromRgb(88, 88, 88), Color.FromRgb(245, 245, 245));
+    }
+
+    private static Grid TableGridIcon()
+    {
+        var blue = new SolidColorBrush(Color.FromRgb(43, 119, 210));
+        var light = new SolidColorBrush(Color.FromRgb(219, 235, 255));
+        var icon = IconCanvas();
+        icon.Children.Add(new System.Windows.Shapes.Rectangle { Width = 14, Height = 14, RadiusX = 2, RadiusY = 2, Fill = light, Stroke = blue, StrokeThickness = 1, Margin = new Thickness(1) });
+        for (var i = 5; i <= 10; i += 5)
+        {
+            icon.Children.Add(new System.Windows.Shapes.Rectangle { Width = 12, Height = 1, Fill = blue, Opacity = 0.75, Margin = new Thickness(2, i, 0, 0), HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top });
+            icon.Children.Add(new System.Windows.Shapes.Rectangle { Width = 1, Height = 12, Fill = blue, Opacity = 0.75, Margin = new Thickness(i, 2, 0, 0), HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top });
+        }
+        return icon;
+    }
+
+    private static Grid EyeIcon()
+    {
+        var purple = new SolidColorBrush(Color.FromRgb(116, 77, 169));
+        var light = new SolidColorBrush(Color.FromRgb(241, 235, 250));
+        var icon = IconCanvas();
+        icon.Children.Add(new System.Windows.Shapes.Ellipse { Width = 15, Height = 9, Fill = light, Stroke = purple, StrokeThickness = 1.2, Margin = new Thickness(0.5, 3.5, 0, 0), HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top });
+        icon.Children.Add(new System.Windows.Shapes.Ellipse { Width = 4.5, Height = 4.5, Fill = purple, Margin = new Thickness(5.75, 5.75, 0, 0), HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top });
+        return icon;
+    }
+
+    private static Grid FunctionIcon() => BadgeIcon("ƒx", Color.FromRgb(35, 150, 95), Color.FromRgb(229, 246, 239), 8.5);
+
+    private static Grid KeyIcon()
+    {
+        var orange = new SolidColorBrush(Color.FromRgb(238, 130, 36));
+        var light = new SolidColorBrush(Color.FromRgb(255, 243, 224));
+        var icon = IconCanvas();
+        icon.Children.Add(new System.Windows.Shapes.Ellipse { Width = 7, Height = 7, Fill = light, Stroke = orange, StrokeThickness = 1.3, Margin = new Thickness(1.5, 4.5, 0, 0), HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top });
+        icon.Children.Add(new System.Windows.Shapes.Rectangle { Width = 8, Height = 2, Fill = orange, Margin = new Thickness(7, 7, 0, 0), HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top });
+        icon.Children.Add(new System.Windows.Shapes.Rectangle { Width = 2, Height = 4, Fill = orange, Margin = new Thickness(12, 7, 0, 0), HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top });
+        return icon;
+    }
+
+    private static Grid HashIcon() => BadgeIcon("#", Color.FromRgb(88, 88, 88), Color.FromRgb(242, 244, 248), 10);
+
+    private static Grid FolderIcon()
+    {
+        var yellow = new SolidColorBrush(Color.FromRgb(242, 177, 52));
+        var dark = new SolidColorBrush(Color.FromRgb(172, 118, 20));
+        var icon = IconCanvas();
+        icon.Children.Add(new System.Windows.Shapes.Rectangle { Width = 7, Height = 3, RadiusX = 1, RadiusY = 1, Fill = yellow, Stroke = dark, StrokeThickness = 0.8, Margin = new Thickness(1.5, 3, 0, 0), HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top });
+        icon.Children.Add(new System.Windows.Shapes.Rectangle { Width = 14, Height = 10, RadiusX = 1.5, RadiusY = 1.5, Fill = yellow, Stroke = dark, StrokeThickness = 1, Margin = new Thickness(1, 5, 0, 0), HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top });
+        return icon;
+    }
+
+    private static Grid BadgeIcon(string text, Color color, Color background, double fontSize = 9)
+    {
+        var icon = IconCanvas();
+        icon.Children.Add(new System.Windows.Shapes.Rectangle
+        {
+            Width = 15,
+            Height = 15,
+            RadiusX = 3,
+            RadiusY = 3,
+            Fill = new SolidColorBrush(background),
+            Stroke = new SolidColorBrush(color),
+            StrokeThickness = 1,
+            Margin = new Thickness(0.5)
+        });
+        icon.Children.Add(new TextBlock
+        {
+            Text = text,
+            Foreground = new SolidColorBrush(color),
+            FontSize = fontSize,
+            FontWeight = FontWeights.Bold,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center
+        });
+        return icon;
+    }
+
+    private static Grid IconCanvas() => new()
+    {
+        Width = 16,
+        Height = 16,
+        Margin = new Thickness(0, 0, 6, 0),
+        VerticalAlignment = VerticalAlignment.Center
+    };
 
     private static IEnumerable<string> ListTemplateScripts()
     {
