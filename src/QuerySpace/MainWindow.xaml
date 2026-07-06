@@ -23,8 +23,14 @@
                     <TextBlock Text="&#xE71A;" FontFamily="Segoe MDL2 Assets" FontSize="17" Foreground="#C62828"/>
                 </Button>
                 <Separator Width="12" Opacity="0"/>
+                <Button Click="NewQuery_Click" Style="{StaticResource ToolbarButtonStyle}" MinWidth="44" ToolTip="New Query" AutomationProperties.Name="New Query">
+                    <TextBlock Text="&#xE8A5;" FontFamily="Segoe MDL2 Assets" FontSize="17" Foreground="#0078D4"/>
+                </Button>
                 <Button Click="SaveSql_Click" Style="{StaticResource ToolbarButtonStyle}" MinWidth="44" ToolTip="Save SQL" AutomationProperties.Name="Save SQL">
                     <TextBlock Text="&#xE74E;" FontFamily="Segoe MDL2 Assets" FontSize="17" Foreground="#2B77D2"/>
+                </Button>
+                <Button Click="SaveSqlAs_Click" Style="{StaticResource ToolbarButtonStyle}" MinWidth="44" ToolTip="Save SQL As" AutomationProperties.Name="Save SQL As">
+                    <TextBlock Text="&#xE792;" FontFamily="Segoe MDL2 Assets" FontSize="17" Foreground="#2B77D2"/>
                 </Button>
                 <Button Click="ExportResult_Click" Style="{StaticResource ToolbarButtonStyle}" MinWidth="44" ToolTip="Export Result" AutomationProperties.Name="Export Result">
                     <TextBlock Text="&#xE898;" FontFamily="Segoe MDL2 Assets" FontSize="17" Foreground="#23965F"/>
@@ -140,6 +146,14 @@
                         </ComboBox>
                         <TextBlock Text="Preview rows:" VerticalAlignment="Center" DockPanel.Dock="Left" Margin="0,0,6,0"/>
                         <TextBox x:Name="PreviewRowsText" Width="96" MinWidth="96" MinHeight="32" Text="1000" VerticalContentAlignment="Center" DockPanel.Dock="Left" Padding="4,2"/>
+                        <TextBlock x:Name="EditorFileText"
+                                   Text="Editing: Unsaved query"
+                                   VerticalAlignment="Center"
+                                   DockPanel.Dock="Left"
+                                   Margin="18,0,0,0"
+                                   Foreground="{DynamicResource {x:Static SystemColors.GrayTextBrushKey}}"
+                                   TextTrimming="CharacterEllipsis"
+                                   MaxWidth="340"/>
                     </DockPanel>
                 </Border>
                 <Border Grid.Row="1" BorderBrush="{DynamicResource {x:Static SystemColors.ControlDarkBrushKey}}" BorderThickness="1">

@@ -94,11 +94,21 @@ public sealed class Workspace
         }
     }
 
-    public void SaveScript(string name, string sql)
+    public string SaveScript(string name, string sql)
     {
         Directory.CreateDirectory(ScriptsFolder);
         var fileName = SafeName(Path.GetFileNameWithoutExtension(name)) + ".sql";
-        File.WriteAllText(Path.Combine(ScriptsFolder, fileName), sql);
+        var path = Path.Combine(ScriptsFolder, fileName);
+        WriteTextAtomically(path, sql);
+        return path;
+    }
+
+    public static void WriteTextAtomically(string path, string text)
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        var tempPath = path + ".tmp";
+        File.WriteAllText(tempPath, text);
+        File.Move(tempPath, path, true);
     }
 
     public IEnumerable<string> ListScripts()
@@ -174,7 +184,7 @@ public sealed class Workspace
             Directory.CreateDirectory(folder);
             var name = SafeName(datasetName);
             var path = Path.Combine(folder, name + ".sql");
-            File.WriteAllText(path, sql);
+            WriteTextAtomically(path, sql);
 
             var query = State.ExtractQueries.FirstOrDefault(q =>
                 q.ConnectionId == connectionId &&

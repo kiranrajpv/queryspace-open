@@ -26,6 +26,9 @@ public partial class MainWindow : Window
     private readonly Queue<string> _scriptExecutionQueue = new();
     private readonly List<InMemoryObjectInfo> _memoryCompletionObjects = new();
     private CompletionWindow? _completionWindow;
+    private string? _currentSqlPath;
+    private string _lastSavedSqlText = "";
+    private bool _suppressSqlDirtyTracking;
     private int _activeScriptExecutions;
 
     public MainWindow()
@@ -34,9 +37,18 @@ public partial class MainWindow : Window
         WindowTitleBar.Apply(this);
         _engine = new DataEngine(_workspace);
         InitializeSqlEditor();
+        Closing += MainWindow_Closing;
         RefreshExplorer();
         _ = RefreshInMemoryExplorerAsync();
         SetStatus("Ready");
+    }
+
+    private void MainWindow_Closing(object? sender, System.ComponentModel.CancelEventArgs e)
+    {
+        if (!ConfirmSaveSqlIfDirty())
+        {
+            e.Cancel = true;
+        }
     }
 
     private void InitializeSqlEditor()
@@ -50,6 +62,15 @@ public partial class MainWindow : Window
         SqlEditor.TextArea.TextEntered += SqlEditor_TextEntered;
         SqlEditor.TextArea.TextEntering += SqlEditor_TextEntering;
         SqlEditor.PreviewKeyDown += SqlEditor_PreviewKeyDown;
+        SqlEditor.TextChanged += SqlEditor_TextChanged;
+        _lastSavedSqlText = SqlEditor.Text;
+        UpdateEditorFileStatus();
+    }
+
+    private void SqlEditor_TextChanged(object? sender, EventArgs e)
+    {
+        if (_suppressSqlDirtyTracking) return;
+        UpdateEditorFileStatus();
     }
 
     private void SqlEditor_TextEntered(object sender, TextCompositionEventArgs e)
@@ -376,13 +397,116 @@ public partial class MainWindow : Window
         }
     }
 
+    private bool IsSqlDirty => !string.Equals(SqlEditor.Text, _lastSavedSqlText, StringComparison.Ordinal);
+
+    private void SetEditorDocument(string? path, string sql, bool markSaved)
+    {
+        _suppressSqlDirtyTracking = true;
+        try
+        {
+            _currentSqlPath = path;
+            SqlEditor.Text = sql;
+            if (markSaved)
+            {
+                _lastSavedSqlText = sql;
+            }
+        }
+        finally
+        {
+            _suppressSqlDirtyTracking = false;
+            UpdateEditorFileStatus();
+        }
+    }
+
+    private void SetUnsavedEditorDocument(string sql)
+    {
+        SetEditorDocument(null, sql, true);
+    }
+
+    private void UpdateEditorFileStatus()
+    {
+        var label = _currentSqlPath == null ? "Unsaved query" : Path.GetFileName(_currentSqlPath);
+        EditorFileText.Text = $"Editing: {label}{(IsSqlDirty ? " *" : "")}";
+        EditorFileText.ToolTip = _currentSqlPath == null
+            ? "This query is not saved to a SQL file yet."
+            : _currentSqlPath;
+    }
+
+    private bool ConfirmSaveSqlIfDirty()
+    {
+        if (!IsSqlDirty) return true;
+        var label = _currentSqlPath == null ? "the current query" : Path.GetFileName(_currentSqlPath);
+        var result = MessageBox.Show(
+            this,
+            $"Save changes to {label}?",
+            "Unsaved SQL changes",
+            MessageBoxButton.YesNoCancel,
+            MessageBoxImage.Question);
+
+        return result switch
+        {
+            MessageBoxResult.Yes => SaveCurrentSql(),
+            MessageBoxResult.No => true,
+            _ => false
+        };
+    }
+
+    private bool SaveCurrentSql()
+    {
+        if (string.IsNullOrWhiteSpace(_currentSqlPath))
+        {
+            return SaveSqlAsNew();
+        }
+
+        if (!File.Exists(_currentSqlPath))
+        {
+            var result = MessageBox.Show(
+                this,
+                "The original SQL file no longer exists. Save this query as a new SQL file?",
+                "Save SQL",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Warning);
+            return result == MessageBoxResult.Yes && SaveSqlAsNew();
+        }
+
+        Workspace.WriteTextAtomically(_currentSqlPath, SqlEditor.Text);
+        _lastSavedSqlText = SqlEditor.Text;
+        UpdateEditorFileStatus();
+        RefreshExplorer();
+        SetStatus($"Saved SQL {Path.GetFileName(_currentSqlPath)}");
+        return true;
+    }
+
+    private bool SaveSqlAsNew()
+    {
+        var name = Prompt("Save SQL", "Script name:", _currentSqlPath == null ? "query.sql" : Path.GetFileName(_currentSqlPath));
+        if (string.IsNullOrWhiteSpace(name)) return false;
+        var path = _workspace.SaveScript(name, SqlEditor.Text);
+        _currentSqlPath = path;
+        _lastSavedSqlText = SqlEditor.Text;
+        UpdateEditorFileStatus();
+        RefreshExplorer();
+        SetStatus($"Saved SQL {Path.GetFileName(path)}");
+        return true;
+    }
+
+    private void NewQuery_Click(object sender, RoutedEventArgs e)
+    {
+        if (!ConfirmSaveSqlIfDirty()) return;
+        SetUnsavedEditorDocument("select * from dataset_name limit 100;");
+        ResultsGrid.ItemsSource = null;
+        _currentResults = null;
+        SetStatus("New unsaved query");
+    }
+
     private void SaveSql_Click(object sender, RoutedEventArgs e)
     {
-        var name = Prompt("Save SQL", "Script name:", "query.sql");
-        if (string.IsNullOrWhiteSpace(name)) return;
-        _workspace.SaveScript(name, SqlEditor.Text);
-        RefreshExplorer();
-        SetStatus($"Saved SQL {name}");
+        SaveCurrentSql();
+    }
+
+    private void SaveSqlAs_Click(object sender, RoutedEventArgs e)
+    {
+        SaveSqlAsNew();
     }
 
     private async void ExportResult_Click(object sender, RoutedEventArgs e)
@@ -496,7 +620,8 @@ public partial class MainWindow : Window
     {
         if (SelectedTreeValue(ScriptsTree) is string path && File.Exists(path))
         {
-            SqlEditor.Text = File.ReadAllText(path);
+            if (!ConfirmSaveSqlIfDirty()) return;
+            SetEditorDocument(path, File.ReadAllText(path), true);
             SetStatus($"Opened {Path.GetFileName(path)}");
         }
     }
@@ -505,7 +630,8 @@ public partial class MainWindow : Window
     {
         if (SelectedTreeValue(TemplatesTree) is string path && File.Exists(path))
         {
-            SqlEditor.Text = File.ReadAllText(path);
+            if (!ConfirmSaveSqlIfDirty()) return;
+            SetUnsavedEditorDocument(File.ReadAllText(path));
             SetStatus($"Loaded template {Path.GetFileName(path)}");
         }
     }
@@ -540,7 +666,8 @@ public partial class MainWindow : Window
     private void MemoryGenerateSelect_Click(object sender, RoutedEventArgs e)
     {
         if (SelectedMemoryObject() is not { } obj) return;
-        SqlEditor.Text = MemoryObjectSqlSnippet(obj);
+        if (!ConfirmSaveSqlIfDirty()) return;
+        SetUnsavedEditorDocument(MemoryObjectSqlSnippet(obj));
         UsageCombo.SelectedIndex = 0;
         SetStatus(CanQueryMemoryObject(obj) ? $"Generated SELECT for {obj.Name}" : $"Generated SQL snippet for {obj.Name}");
     }
@@ -613,9 +740,16 @@ public partial class MainWindow : Window
     private void RenameScript_Click(object sender, RoutedEventArgs e)
     {
         if (SelectedTreeValue(ScriptsTree) is not string path || !File.Exists(path)) return;
+        if (Path.GetFullPath(path).Equals(Path.GetFullPath(_currentSqlPath ?? ""), StringComparison.OrdinalIgnoreCase) && !ConfirmSaveSqlIfDirty()) return;
         var name = Prompt("Rename SQL", "Script name:", Path.GetFileName(path));
         if (string.IsNullOrWhiteSpace(name)) return;
-        File.Move(path, Path.Combine(_workspace.ScriptsFolder, Workspace.SafeName(Path.GetFileNameWithoutExtension(name)) + ".sql"), true);
+        var newPath = Path.Combine(_workspace.ScriptsFolder, Workspace.SafeName(Path.GetFileNameWithoutExtension(name)) + ".sql");
+        File.Move(path, newPath, true);
+        if (Path.GetFullPath(path).Equals(Path.GetFullPath(_currentSqlPath ?? ""), StringComparison.OrdinalIgnoreCase))
+        {
+            _currentSqlPath = newPath;
+            UpdateEditorFileStatus();
+        }
         RefreshExplorer();
     }
 
@@ -624,6 +758,12 @@ public partial class MainWindow : Window
         if (SelectedTreeValue(ScriptsTree) is not string path || !File.Exists(path)) return;
         if (MessageBox.Show(this, $"Delete script \"{Path.GetFileName(path)}\"?", "Delete SQL", MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
         File.Delete(path);
+        if (Path.GetFullPath(path).Equals(Path.GetFullPath(_currentSqlPath ?? ""), StringComparison.OrdinalIgnoreCase))
+        {
+            _currentSqlPath = null;
+            _lastSavedSqlText = SqlEditor.Text;
+            UpdateEditorFileStatus();
+        }
         RefreshExplorer();
     }
 
@@ -756,7 +896,8 @@ public partial class MainWindow : Window
         try
         {
             var sql = MemoryObjectSelectSql(obj);
-            SqlEditor.Text = sql;
+            if (!ConfirmSaveSqlIfDirty()) return;
+            SetUnsavedEditorDocument(sql);
             UsageCombo.SelectedIndex = 0;
             var previewRows = int.TryParse(PreviewRowsText.Text, out var value) ? value : 1000;
             SetStatus($"Previewing {obj.Name}...", true);
