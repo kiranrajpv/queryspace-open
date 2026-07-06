@@ -2,10 +2,12 @@ using ICSharpCode.AvalonEdit.CodeCompletion;
 using ICSharpCode.AvalonEdit.Document;
 using ICSharpCode.AvalonEdit.Editing;
 using ICSharpCode.AvalonEdit.Highlighting;
+using ICSharpCode.AvalonEdit.Rendering;
 using Microsoft.Win32;
 using System.Diagnostics;
 using System.Data;
 using System.IO;
+using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -40,6 +42,7 @@ public partial class MainWindow : Window
     private void InitializeSqlEditor()
     {
         SqlEditor.SyntaxHighlighting = HighlightingManager.Instance.GetDefinition("SQL");
+        SqlEditor.TextArea.TextView.LineTransformers.Add(new DuckDbSqlColorizer());
         SqlEditor.Options.EnableHyperlinks = false;
         SqlEditor.Options.EnableEmailHyperlinks = false;
         SqlEditor.Options.ConvertTabsToSpaces = true;
@@ -100,7 +103,7 @@ public partial class MainWindow : Window
         var data = _completionWindow.CompletionList.CompletionData;
         foreach (var suggestion in suggestions)
         {
-            data.Add(new SqlCompletionData(suggestion.Text, suggestion.Content, suggestion.Description, suggestion.Priority));
+            data.Add(new SqlCompletionData(suggestion));
         }
         _completionWindow.Closed += (_, _) => _completionWindow = null;
         _completionWindow.Show();
@@ -157,11 +160,27 @@ public partial class MainWindow : Window
 
     private static IEnumerable<SqlSuggestion> StaticSqlSuggestions()
     {
+        SqlSuggestion[] snippets =
+        [
+            new("create table", "create table table_name as\nselect * from source_name;\n", "DuckDB snippet: create table from query", 1.2, "table_name"),
+            new("create temp table", "create temp table table_name as\nselect * from source_name;\n", "DuckDB snippet: create temporary table", 1.19, "table_name"),
+            new("create view", "create or replace view view_name as\nselect * from source_name;\n", "DuckDB snippet: create or replace view", 1.2, "view_name"),
+            new("create temp view", "create or replace temp view view_name as\nselect * from source_name;\n", "DuckDB snippet: create temporary view", 1.19, "view_name"),
+            new("create macro", "create macro macro_name(x) as\ncase\n    when x is null then null\n    else x\nend;\n", "DuckDB snippet: reusable SQL macro/function", 1.18, "macro_name"),
+            new("create index", "create index index_name on table_name(column_name);\n", "DuckDB snippet: create index", 1.17, "index_name"),
+            new("create sequence", "create sequence sequence_name start 1 increment 1;\n", "DuckDB snippet: create sequence", 1.16, "sequence_name"),
+            new("create schema", "create schema schema_name;\n", "DuckDB snippet: create schema", 1.15, "schema_name"),
+            new("copy to parquet", "copy (\n    select * from source_name\n) to 'output.parquet' (format parquet, compression zstd);\n", "DuckDB snippet: export query to Parquet", 1.14, "source_name")
+        ];
+        foreach (var snippet in snippets)
+        {
+            yield return snippet;
+        }
+
         string[] keywords =
         [
             "select", "from", "where", "join", "left join", "inner join", "group by", "order by", "having",
-            "limit", "create table", "create temp table", "create view", "create temp view", "create macro",
-            "create index", "create sequence", "create schema", "drop table", "drop view", "drop macro",
+            "limit", "drop table", "drop view", "drop macro",
             "insert into", "copy", "describe", "show tables", "with", "as", "case", "when", "then", "else", "end",
             "and", "or", "not", "is null", "is not null", "union all"
         ];
@@ -1530,27 +1549,106 @@ public partial class MainWindow : Window
         public TextBlock? StatusText { get; set; }
     }
 
-    private sealed record SqlSuggestion(string Text, string Content, string Description, double Priority);
+    private sealed record SqlSuggestion(string Text, string InsertText, string Description, double Priority, string? Placeholder = null);
 
     private sealed class SqlCompletionData : ICompletionData
     {
-        public SqlCompletionData(string text, string content, string description, double priority)
+        private readonly SqlSuggestion _suggestion;
+
+        public SqlCompletionData(SqlSuggestion suggestion)
         {
-            Text = text;
-            Content = content;
-            Description = description;
-            Priority = priority;
+            _suggestion = suggestion;
         }
 
         public ImageSource? Image => null;
-        public string Text { get; }
-        public object Content { get; }
-        public object Description { get; }
-        public double Priority { get; }
+        public string Text => _suggestion.InsertText;
+        public object Content => _suggestion.Text;
+        public object Description => _suggestion.Description;
+        public double Priority => _suggestion.Priority;
 
         public void Complete(TextArea textArea, ISegment completionSegment, EventArgs insertionRequestEventArgs)
         {
-            textArea.Document.Replace(completionSegment, Text);
+            var startOffset = completionSegment.Offset;
+            textArea.Document.Replace(completionSegment, _suggestion.InsertText);
+            if (!string.IsNullOrWhiteSpace(_suggestion.Placeholder))
+            {
+                var placeholderOffset = _suggestion.InsertText.IndexOf(_suggestion.Placeholder, StringComparison.Ordinal);
+                if (placeholderOffset >= 0)
+                {
+                    textArea.Caret.Offset = startOffset + placeholderOffset;
+                    textArea.Selection = Selection.Create(textArea, startOffset + placeholderOffset, startOffset + placeholderOffset + _suggestion.Placeholder.Length);
+                    return;
+                }
+            }
+            textArea.Caret.Offset = startOffset + _suggestion.InsertText.Length;
+        }
+    }
+
+    private sealed class DuckDbSqlColorizer : DocumentColorizingTransformer
+    {
+        private static readonly Regex TokenRegex = new(@"\b[a-zA-Z_][a-zA-Z0-9_]*\b", RegexOptions.Compiled);
+        private static readonly Regex StringRegex = new(@"'([^']|'')*'", RegexOptions.Compiled);
+        private static readonly HashSet<string> Keywords = new(StringComparer.OrdinalIgnoreCase)
+        {
+            "select", "from", "where", "join", "left", "right", "inner", "outer", "full", "cross", "on", "using",
+            "group", "by", "order", "having", "limit", "offset", "create", "or", "replace", "temp", "temporary",
+            "table", "view", "macro", "index", "sequence", "schema", "as", "drop", "if", "exists", "insert",
+            "into", "values", "copy", "to", "format", "parquet", "csv", "compression", "zstd", "with", "case",
+            "when", "then", "else", "end", "and", "not", "is", "null", "true", "false", "distinct", "union",
+            "all", "except", "intersect", "window", "over", "partition", "rows", "range", "between", "cast",
+            "try_cast", "describe", "show", "attach", "detach", "database"
+        };
+        private static readonly HashSet<string> Functions = new(StringComparer.OrdinalIgnoreCase)
+        {
+            "count", "sum", "avg", "min", "max", "coalesce", "nullif", "upper", "lower", "trim", "regexp_replace",
+            "regexp_matches", "strptime", "strftime", "round", "abs", "length", "substring", "replace",
+            "split_part", "date_diff", "date_trunc", "row_number", "rank", "dense_rank", "nextval", "read_parquet",
+            "read_csv_auto"
+        };
+
+        protected override void ColorizeLine(DocumentLine line)
+        {
+            var lineText = CurrentContext.Document.GetText(line);
+            var lineStart = line.Offset;
+            var commentIndex = lineText.IndexOf("--", StringComparison.Ordinal);
+            var codeLength = commentIndex >= 0 ? commentIndex : lineText.Length;
+
+            foreach (Match match in StringRegex.Matches(lineText[..codeLength]))
+            {
+                ChangeSafe(lineStart + match.Index, lineStart + match.Index + match.Length, Brushes.Brown, FontWeights.Normal);
+            }
+
+            foreach (Match match in TokenRegex.Matches(lineText[..codeLength]))
+            {
+                var token = match.Value;
+                if (Keywords.Contains(token))
+                {
+                    ChangeSafe(lineStart + match.Index, lineStart + match.Index + match.Length, new SolidColorBrush(Color.FromRgb(0, 82, 155)), FontWeights.Bold);
+                }
+                else if (Functions.Contains(token))
+                {
+                    ChangeSafe(lineStart + match.Index, lineStart + match.Index + match.Length, new SolidColorBrush(Color.FromRgb(0, 120, 140)), FontWeights.Normal);
+                }
+            }
+
+            if (commentIndex >= 0)
+            {
+                ChangeSafe(lineStart + commentIndex, line.EndOffset, new SolidColorBrush(Color.FromRgb(0, 128, 0)), FontWeights.Normal);
+            }
+        }
+
+        private void ChangeSafe(int startOffset, int endOffset, Brush foreground, FontWeight weight)
+        {
+            if (endOffset <= startOffset) return;
+            ChangeLinePart(startOffset, endOffset, element =>
+            {
+                element.TextRunProperties.SetForegroundBrush(foreground);
+                element.TextRunProperties.SetTypeface(new Typeface(
+                    element.TextRunProperties.Typeface.FontFamily,
+                    element.TextRunProperties.Typeface.Style,
+                    weight,
+                    element.TextRunProperties.Typeface.Stretch));
+            });
         }
     }
 

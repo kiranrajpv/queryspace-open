@@ -13,7 +13,7 @@ It provides a local SQL workspace for importing CSV, Excel, and Parquet files, e
 - Built-in SQL Templates explorer for Extract, Transform/Pre-Load, and Post-Load validation starting points.
 - Connections explorer.
 - In-Memory DuckDB object explorer for session tables, views, macros/functions, indexes, sequences, and schemas.
-- AvalonEdit SQL editor with line numbers, SQL syntax highlighting when available, and autocomplete for SQL keywords, DuckDB functions, local datasets, and In-Memory objects.
+- AvalonEdit SQL editor with line numbers, QuerySpace DuckDB SQL coloring, autocomplete, and DuckDB snippets for common statements such as `create or replace view`.
 - Import CSV, Excel, or Parquet into workspace-managed Parquet datasets.
 - Normalize common Excel/CSV null markers such as `#N/A`, `#VALUE!`, `#REF!`, `#DIV/0!`, `NULL`, `N/A`, and blanks.
 - Deterministic dataset files: `workspace\datasets\<dataset_name>.parquet`.
@@ -76,7 +76,7 @@ These are referenced directly in [QuerySpace.csproj](src/QuerySpace/QuerySpace.c
 
 | Package | Version | License from NuGet metadata | Why QuerySpace uses it |
 |---|---:|---|---|
-| `AvalonEdit` | 6.3.1.120 | MIT | Replaces the plain query textbox with a SQL editor that supports line numbers, syntax highlighting, and autocomplete. |
+| `AvalonEdit` | 6.3.1.120 | MIT | Replaces the plain query textbox with a SQL editor that supports line numbers, QuerySpace DuckDB SQL coloring, autocomplete, and snippets. |
 | `CommunityToolkit.Mvvm` | 8.4.2 | MIT | MVVM utility package available for UI binding/view-model work. |
 | `CsvHelper` | 33.1.0 | MS-PL OR Apache-2.0 | CSV handling support for import/export workflows. |
 | `DuckDB.NET.Data.Full` | 1.5.3 | MIT | Embedded DuckDB ADO.NET provider plus bundled native DuckDB runtime. Used for local SQL over Parquet, CSV-to-Parquet import, result previews, and CSV export. |

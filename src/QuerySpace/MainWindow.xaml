@@ -139,14 +139,15 @@
                         <TextBox x:Name="PreviewRowsText" Width="96" MinWidth="96" MinHeight="32" Text="1000" VerticalContentAlignment="Center" DockPanel.Dock="Left" Padding="4,2"/>
                     </DockPanel>
                 </Border>
-                <avalonedit:TextEditor x:Name="SqlEditor"
-                                        Grid.Row="1"
-                                        FontFamily="Consolas"
-                                        FontSize="15"
-                                        ShowLineNumbers="True"
-                                        VerticalScrollBarVisibility="Auto"
-                                        HorizontalScrollBarVisibility="Auto"
-                                        Text="select * from dataset_name limit 100;"/>
+                <Border Grid.Row="1" BorderBrush="{DynamicResource {x:Static SystemColors.ControlDarkBrushKey}}" BorderThickness="1">
+                    <avalonedit:TextEditor x:Name="SqlEditor"
+                                            FontFamily="Consolas"
+                                            FontSize="15"
+                                            ShowLineNumbers="True"
+                                            VerticalScrollBarVisibility="Auto"
+                                            HorizontalScrollBarVisibility="Auto"
+                                            Text="select * from dataset_name limit 100;"/>
+                </Border>
                 <GridSplitter Grid.Row="2" Height="5" HorizontalAlignment="Stretch"/>
                 <DataGrid x:Name="ResultsGrid" Grid.Row="3"/>
             </Grid>
