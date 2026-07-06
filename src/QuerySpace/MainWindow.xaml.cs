@@ -423,7 +423,20 @@ public partial class MainWindow : Window
         ScriptsTree.Items.Clear();
         foreach (var path in _workspace.ListScripts())
         {
-            ScriptsTree.Items.Add(new TreeViewItem { Header = ScriptTreeHeader(path), Tag = path });
+            var item = new TreeViewItem { Header = ScriptTreeHeader(path), Tag = path };
+            item.Selected += (_, _) =>
+            {
+                var state = GetScriptState(path);
+                state.IsSelected = true;
+                UpdateScriptStateUi(state);
+            };
+            item.Unselected += (_, _) =>
+            {
+                var state = GetScriptState(path);
+                state.IsSelected = false;
+                UpdateScriptStateUi(state);
+            };
+            ScriptsTree.Items.Add(item);
         }
         TemplatesTree.Items.Clear();
         foreach (var path in ListTemplateScripts())
@@ -473,12 +486,13 @@ public partial class MainWindow : Window
         };
         header.Children.Add(action);
         header.Children.Add(SqlFileIcon());
-        header.Children.Add(new TextBlock
+        var fileNameText = new TextBlock
         {
             Text = Path.GetFileName(path),
             MinWidth = 135,
             VerticalAlignment = VerticalAlignment.Center
-        });
+        };
+        header.Children.Add(fileNameText);
         var progress = new ProgressBar
         {
             Width = 62,
@@ -498,6 +512,7 @@ public partial class MainWindow : Window
         };
         header.Children.Add(status);
         state.ActionButton = action;
+        state.FileNameText = fileNameText;
         state.Progress = progress;
         state.StatusText = status;
         UpdateScriptStateUi(state);
@@ -677,8 +692,13 @@ public partial class MainWindow : Window
         if (state.StatusText != null)
         {
             state.StatusText.Text = ScriptStatusText(state);
-            state.StatusText.Foreground = ScriptStatusBrush(state.Status);
+            state.StatusText.Foreground = state.IsSelected ? SystemColors.HighlightTextBrush : ScriptStatusBrush(state.Status);
             state.StatusText.ToolTip = state.LastError;
+        }
+
+        if (state.FileNameText != null)
+        {
+            state.FileNameText.Foreground = state.IsSelected ? SystemColors.HighlightTextBrush : SystemColors.ControlTextBrush;
         }
     }
 
@@ -912,8 +932,10 @@ public partial class MainWindow : Window
         public long? RowCount { get; set; }
         public TimeSpan? Elapsed { get; set; }
         public string? LastError { get; set; }
+        public bool IsSelected { get; set; }
         public CancellationTokenSource? Cancellation { get; set; }
         public Button? ActionButton { get; set; }
+        public TextBlock? FileNameText { get; set; }
         public ProgressBar? Progress { get; set; }
         public TextBlock? StatusText { get; set; }
     }
