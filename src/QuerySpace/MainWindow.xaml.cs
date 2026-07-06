@@ -466,7 +466,13 @@ public partial class MainWindow : Window
     private StackPanel ScriptTreeHeader(string path)
     {
         var state = GetScriptState(path);
-        var header = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+        var header = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 1, 0, 1),
+            MinHeight = 24
+        };
         var action = new Button
         {
             Content = state.Status is ScriptExecutionStatus.Running or ScriptExecutionStatus.Queued ? "■" : "▶",
@@ -512,6 +518,7 @@ public partial class MainWindow : Window
         };
         header.Children.Add(status);
         state.ActionButton = action;
+        state.HeaderPanel = header;
         state.FileNameText = fileNameText;
         state.Progress = progress;
         state.StatusText = status;
@@ -705,6 +712,18 @@ public partial class MainWindow : Window
             else
             {
                 state.FileNameText.ClearValue(TextBlock.ForegroundProperty);
+            }
+        }
+
+        if (state.HeaderPanel != null)
+        {
+            if (state.IsSelected)
+            {
+                state.HeaderPanel.Background = SystemColors.HighlightBrush;
+            }
+            else
+            {
+                state.HeaderPanel.ClearValue(Panel.BackgroundProperty);
             }
         }
     }
@@ -942,6 +961,7 @@ public partial class MainWindow : Window
         public bool IsSelected { get; set; }
         public CancellationTokenSource? Cancellation { get; set; }
         public Button? ActionButton { get; set; }
+        public StackPanel? HeaderPanel { get; set; }
         public TextBlock? FileNameText { get; set; }
         public ProgressBar? Progress { get; set; }
         public TextBlock? StatusText { get; set; }
