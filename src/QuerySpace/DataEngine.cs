@@ -131,6 +131,70 @@ public sealed class DataEngine
         }
     }
 
+    public async Task<ScriptExecutionSummary> ExecuteScriptSummaryAsync(string sql, CancellationToken token)
+    {
+        return await Task.Run(() =>
+        {
+            token.ThrowIfCancellationRequested();
+            var statements = SplitStatements(sql).ToList();
+            if (statements.Count == 0) throw new InvalidOperationException("SQL script is empty.");
+
+            using var connection = NewOpenDuckConnection();
+            RegisterDatasetViews(connection);
+
+            for (var i = 0; i < statements.Count - 1; i++)
+            {
+                token.ThrowIfCancellationRequested();
+                using var command = connection.CreateCommand();
+                command.CommandText = statements[i];
+                try
+                {
+                    using var reader = command.ExecuteReader();
+                    while (reader.Read())
+                    {
+                        token.ThrowIfCancellationRequested();
+                    }
+                }
+                catch
+                {
+                    command.ExecuteNonQuery();
+                }
+            }
+
+            token.ThrowIfCancellationRequested();
+            var last = TrimTrailingSemicolon(statements[^1]);
+            using var countCommand = connection.CreateCommand();
+            countCommand.CommandText = $"select count(*) from ({last}) q";
+            try
+            {
+                var count = Convert.ToInt64(countCommand.ExecuteScalar(), CultureInfo.InvariantCulture);
+                return new ScriptExecutionSummary { RowCount = count, ReturnedRows = true };
+            }
+            catch
+            {
+                token.ThrowIfCancellationRequested();
+                using var command = connection.CreateCommand();
+                command.CommandText = last;
+                try
+                {
+                    using var reader = command.ExecuteReader();
+                    long rows = 0;
+                    while (reader.Read())
+                    {
+                        token.ThrowIfCancellationRequested();
+                        rows++;
+                    }
+                    return new ScriptExecutionSummary { RowCount = rows, ReturnedRows = true };
+                }
+                catch
+                {
+                    command.ExecuteNonQuery();
+                    return new ScriptExecutionSummary { ReturnedRows = false };
+                }
+            }
+        }, token);
+    }
+
     public async Task ExportResultAsync(string sql, string outputPath, ExportFormat format, IProgress<string>? progress, CancellationToken token)
     {
         await Task.Run(() =>

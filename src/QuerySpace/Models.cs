@@ -55,6 +55,12 @@ public sealed class QueryResult
     public long DisplayedRows => Table.Rows.Count;
 }
 
+public sealed class ScriptExecutionSummary
+{
+    public long? RowCount { get; init; }
+    public bool ReturnedRows { get; init; }
+}
+
 public enum ExportFormat
 {
     Csv,

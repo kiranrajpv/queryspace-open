@@ -1,4 +1,5 @@
 using Microsoft.Win32;
+using System.Diagnostics;
 using System.Data;
 using System.IO;
 using System.Windows;
@@ -13,6 +14,10 @@ public partial class MainWindow : Window
     private DataEngine _engine;
     private CancellationTokenSource? _extractCts;
     private DataTable? _currentResults;
+    private const int MaxScriptExecutions = 3;
+    private readonly Dictionary<string, ScriptExecutionState> _scriptExecutionStates = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Queue<string> _scriptExecutionQueue = new();
+    private int _activeScriptExecutions;
 
     public MainWindow()
     {
@@ -418,7 +423,7 @@ public partial class MainWindow : Window
         ScriptsTree.Items.Clear();
         foreach (var path in _workspace.ListScripts())
         {
-            ScriptsTree.Items.Add(new TreeViewItem { Header = TreeHeader(SqlFileIcon(), Path.GetFileName(path)), Tag = path });
+            ScriptsTree.Items.Add(new TreeViewItem { Header = ScriptTreeHeader(path), Tag = path });
         }
         TemplatesTree.Items.Clear();
         foreach (var path in ListTemplateScripts())
@@ -444,6 +449,252 @@ public partial class MainWindow : Window
     }
 
     private static object? SelectedTreeValue(TreeView tree) => (tree.SelectedItem as TreeViewItem)?.Tag;
+
+    private StackPanel ScriptTreeHeader(string path)
+    {
+        var state = GetScriptState(path);
+        var header = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+        var action = new Button
+        {
+            Content = state.Status is ScriptExecutionStatus.Running or ScriptExecutionStatus.Queued ? "■" : "▶",
+            ToolTip = state.Status is ScriptExecutionStatus.Running or ScriptExecutionStatus.Queued ? "Cancel execution" : "Execute SQL file",
+            MinWidth = 24,
+            MinHeight = 22,
+            Padding = new Thickness(4, 0, 4, 1),
+            Margin = new Thickness(0, 0, 6, 0),
+            Foreground = state.Status is ScriptExecutionStatus.Running or ScriptExecutionStatus.Queued
+                ? new SolidColorBrush(Color.FromRgb(198, 40, 40))
+                : new SolidColorBrush(Color.FromRgb(35, 150, 95))
+        };
+        action.Click += (_, e) =>
+        {
+            e.Handled = true;
+            ToggleScriptExecution(path);
+        };
+        header.Children.Add(action);
+        header.Children.Add(SqlFileIcon());
+        header.Children.Add(new TextBlock
+        {
+            Text = Path.GetFileName(path),
+            MinWidth = 135,
+            VerticalAlignment = VerticalAlignment.Center
+        });
+        var progress = new ProgressBar
+        {
+            Width = 62,
+            Height = 8,
+            Margin = new Thickness(8, 0, 6, 0),
+            Visibility = state.Status == ScriptExecutionStatus.Running ? Visibility.Visible : Visibility.Collapsed,
+            IsIndeterminate = true,
+            Foreground = new SolidColorBrush(Color.FromRgb(35, 150, 95))
+        };
+        header.Children.Add(progress);
+        var status = new TextBlock
+        {
+            Text = ScriptStatusText(state),
+            Foreground = ScriptStatusBrush(state.Status),
+            VerticalAlignment = VerticalAlignment.Center,
+            ToolTip = state.LastError
+        };
+        header.Children.Add(status);
+        state.ActionButton = action;
+        state.Progress = progress;
+        state.StatusText = status;
+        UpdateScriptStateUi(state);
+        return header;
+    }
+
+    private ScriptExecutionState GetScriptState(string path)
+    {
+        if (_scriptExecutionStates.TryGetValue(path, out var state)) return state;
+        state = new ScriptExecutionState { Path = path };
+        _scriptExecutionStates[path] = state;
+        return state;
+    }
+
+    private void ToggleScriptExecution(string path)
+    {
+        var state = GetScriptState(path);
+        if (state.Status is ScriptExecutionStatus.Running or ScriptExecutionStatus.Queued)
+        {
+            CancelScriptExecution(state);
+            return;
+        }
+
+        QueueScriptExecution(state);
+    }
+
+    private void QueueScriptExecution(ScriptExecutionState state)
+    {
+        if (!File.Exists(state.Path))
+        {
+            state.Status = ScriptExecutionStatus.Failed;
+            state.LastError = "SQL script file does not exist.";
+            state.StatusMessage = "Failed";
+            UpdateScriptStateUi(state);
+            return;
+        }
+
+        state.Cancellation?.Dispose();
+        state.Cancellation = new CancellationTokenSource();
+        state.LastError = null;
+        state.RowCount = null;
+        state.Elapsed = null;
+        state.Status = ScriptExecutionStatus.Queued;
+        state.StatusMessage = "Queued";
+        _scriptExecutionQueue.Enqueue(state.Path);
+        UpdateQueuedScriptPositions();
+        UpdateScriptStateUi(state);
+        PumpScriptExecutionQueue();
+    }
+
+    private void CancelScriptExecution(ScriptExecutionState state)
+    {
+        if (state.Status == ScriptExecutionStatus.Queued)
+        {
+            state.Status = ScriptExecutionStatus.Cancelled;
+            state.StatusMessage = "Cancelled";
+            state.Cancellation?.Cancel();
+            state.Cancellation?.Dispose();
+            state.Cancellation = null;
+            UpdateQueuedScriptPositions();
+            UpdateScriptStateUi(state);
+            return;
+        }
+
+        if (state.Status == ScriptExecutionStatus.Running)
+        {
+            state.StatusMessage = "Cancelling...";
+            state.Cancellation?.Cancel();
+            UpdateScriptStateUi(state);
+        }
+    }
+
+    private void PumpScriptExecutionQueue()
+    {
+        while (_activeScriptExecutions < MaxScriptExecutions && _scriptExecutionQueue.Count > 0)
+        {
+            var path = _scriptExecutionQueue.Dequeue();
+            var state = GetScriptState(path);
+            if (state.Status != ScriptExecutionStatus.Queued) continue;
+            StartScriptExecution(state);
+        }
+
+        UpdateQueuedScriptPositions();
+    }
+
+    private async void StartScriptExecution(ScriptExecutionState state)
+    {
+        _activeScriptExecutions++;
+        state.Status = ScriptExecutionStatus.Running;
+        state.StatusMessage = "Running...";
+        state.Elapsed = null;
+        var stopwatch = Stopwatch.StartNew();
+        UpdateScriptStateUi(state);
+        try
+        {
+            var sql = File.ReadAllText(state.Path);
+            var token = state.Cancellation?.Token ?? CancellationToken.None;
+            var summary = await _engine.ExecuteScriptSummaryAsync(sql, token);
+            stopwatch.Stop();
+            state.RowCount = summary.RowCount;
+            state.Elapsed = stopwatch.Elapsed;
+            state.Status = ScriptExecutionStatus.Completed;
+            state.StatusMessage = summary.ReturnedRows
+                ? $"{summary.RowCount.GetValueOrDefault():N0} rows · {FormatElapsed(stopwatch.Elapsed)}"
+                : $"Completed · {FormatElapsed(stopwatch.Elapsed)}";
+            SetStatus($"SQL script completed: {Path.GetFileName(state.Path)}");
+        }
+        catch (OperationCanceledException)
+        {
+            stopwatch.Stop();
+            state.Elapsed = stopwatch.Elapsed;
+            state.Status = ScriptExecutionStatus.Cancelled;
+            state.StatusMessage = "Cancelled";
+            SetStatus($"SQL script cancelled: {Path.GetFileName(state.Path)}");
+        }
+        catch (Exception ex)
+        {
+            stopwatch.Stop();
+            state.Elapsed = stopwatch.Elapsed;
+            state.Status = ScriptExecutionStatus.Failed;
+            state.StatusMessage = "Failed";
+            state.LastError = ex.Message;
+            SetStatus($"SQL script failed: {Path.GetFileName(state.Path)}");
+        }
+        finally
+        {
+            state.Cancellation?.Dispose();
+            state.Cancellation = null;
+            _activeScriptExecutions = Math.Max(0, _activeScriptExecutions - 1);
+            UpdateScriptStateUi(state);
+            PumpScriptExecutionQueue();
+        }
+    }
+
+    private void UpdateQueuedScriptPositions()
+    {
+        var queued = _scriptExecutionQueue
+            .Select(GetScriptState)
+            .Where(s => s.Status == ScriptExecutionStatus.Queued)
+            .ToList();
+        for (var i = 0; i < queued.Count; i++)
+        {
+            queued[i].StatusMessage = $"Queued #{i + 1}";
+            UpdateScriptStateUi(queued[i]);
+        }
+    }
+
+    private static string ScriptStatusText(ScriptExecutionState state) => state.Status switch
+    {
+        ScriptExecutionStatus.Ready => "Ready",
+        ScriptExecutionStatus.Queued => state.StatusMessage,
+        ScriptExecutionStatus.Running => state.StatusMessage,
+        ScriptExecutionStatus.Completed => state.StatusMessage,
+        ScriptExecutionStatus.Failed => state.StatusMessage,
+        ScriptExecutionStatus.Cancelled => state.StatusMessage,
+        _ => ""
+    };
+
+    private static void UpdateScriptStateUi(ScriptExecutionState state)
+    {
+        if (state.ActionButton != null)
+        {
+            var active = state.Status is ScriptExecutionStatus.Running or ScriptExecutionStatus.Queued;
+            state.ActionButton.Content = active ? "■" : "▶";
+            state.ActionButton.ToolTip = active ? "Cancel execution" : "Execute SQL file";
+            state.ActionButton.Foreground = active
+                ? new SolidColorBrush(Color.FromRgb(198, 40, 40))
+                : new SolidColorBrush(Color.FromRgb(35, 150, 95));
+        }
+
+        if (state.Progress != null)
+        {
+            state.Progress.Visibility = state.Status == ScriptExecutionStatus.Running ? Visibility.Visible : Visibility.Collapsed;
+            state.Progress.IsIndeterminate = state.Status == ScriptExecutionStatus.Running;
+        }
+
+        if (state.StatusText != null)
+        {
+            state.StatusText.Text = ScriptStatusText(state);
+            state.StatusText.Foreground = ScriptStatusBrush(state.Status);
+            state.StatusText.ToolTip = state.LastError;
+        }
+    }
+
+    private static Brush ScriptStatusBrush(ScriptExecutionStatus status) => status switch
+    {
+        ScriptExecutionStatus.Completed => new SolidColorBrush(Color.FromRgb(35, 150, 95)),
+        ScriptExecutionStatus.Failed => new SolidColorBrush(Color.FromRgb(198, 40, 40)),
+        ScriptExecutionStatus.Cancelled => new SolidColorBrush(Color.FromRgb(88, 88, 88)),
+        ScriptExecutionStatus.Running => new SolidColorBrush(Color.FromRgb(35, 150, 95)),
+        ScriptExecutionStatus.Queued => new SolidColorBrush(Color.FromRgb(88, 88, 88)),
+        _ => new SolidColorBrush(Color.FromRgb(88, 88, 88))
+    };
+
+    private static string FormatElapsed(TimeSpan elapsed) => elapsed.TotalHours >= 1
+        ? elapsed.ToString(@"hh\:mm\:ss")
+        : elapsed.ToString(@"mm\:ss");
 
     private static StackPanel TreeHeader(string glyph, string text)
     {
@@ -641,6 +892,30 @@ public partial class MainWindow : Window
         return Directory.Exists(templateFolder)
             ? Directory.EnumerateFiles(templateFolder, "*.sql").OrderBy(Path.GetFileName)
             : [];
+    }
+
+    private enum ScriptExecutionStatus
+    {
+        Ready,
+        Queued,
+        Running,
+        Completed,
+        Failed,
+        Cancelled
+    }
+
+    private sealed class ScriptExecutionState
+    {
+        public string Path { get; init; } = "";
+        public ScriptExecutionStatus Status { get; set; } = ScriptExecutionStatus.Ready;
+        public string StatusMessage { get; set; } = "Ready";
+        public long? RowCount { get; set; }
+        public TimeSpan? Elapsed { get; set; }
+        public string? LastError { get; set; }
+        public CancellationTokenSource? Cancellation { get; set; }
+        public Button? ActionButton { get; set; }
+        public ProgressBar? Progress { get; set; }
+        public TextBlock? StatusText { get; set; }
     }
 
     private static string? Prompt(string title, string label, string defaultValue)
