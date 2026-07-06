@@ -698,7 +698,14 @@ public partial class MainWindow : Window
 
         if (state.FileNameText != null)
         {
-            state.FileNameText.Foreground = state.IsSelected ? SystemColors.HighlightTextBrush : SystemColors.ControlTextBrush;
+            if (state.IsSelected)
+            {
+                state.FileNameText.Foreground = SystemColors.HighlightTextBrush;
+            }
+            else
+            {
+                state.FileNameText.ClearValue(TextBlock.ForegroundProperty);
+            }
         }
     }
 
