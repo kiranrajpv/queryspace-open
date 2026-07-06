@@ -1,9 +1,14 @@
+using ICSharpCode.AvalonEdit.CodeCompletion;
+using ICSharpCode.AvalonEdit.Document;
+using ICSharpCode.AvalonEdit.Editing;
+using ICSharpCode.AvalonEdit.Highlighting;
 using Microsoft.Win32;
 using System.Diagnostics;
 using System.Data;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Media;
 
 namespace QuerySpace;
@@ -17,6 +22,8 @@ public partial class MainWindow : Window
     private const int MaxScriptExecutions = 3;
     private readonly Dictionary<string, ScriptExecutionState> _scriptExecutionStates = new(StringComparer.OrdinalIgnoreCase);
     private readonly Queue<string> _scriptExecutionQueue = new();
+    private readonly List<InMemoryObjectInfo> _memoryCompletionObjects = new();
+    private CompletionWindow? _completionWindow;
     private int _activeScriptExecutions;
 
     public MainWindow()
@@ -24,9 +31,156 @@ public partial class MainWindow : Window
         InitializeComponent();
         WindowTitleBar.Apply(this);
         _engine = new DataEngine(_workspace);
+        InitializeSqlEditor();
         RefreshExplorer();
         _ = RefreshInMemoryExplorerAsync();
         SetStatus("Ready");
+    }
+
+    private void InitializeSqlEditor()
+    {
+        SqlEditor.SyntaxHighlighting = HighlightingManager.Instance.GetDefinition("SQL");
+        SqlEditor.Options.EnableHyperlinks = false;
+        SqlEditor.Options.EnableEmailHyperlinks = false;
+        SqlEditor.Options.ConvertTabsToSpaces = true;
+        SqlEditor.Options.IndentationSize = 4;
+        SqlEditor.TextArea.TextEntered += SqlEditor_TextEntered;
+        SqlEditor.TextArea.TextEntering += SqlEditor_TextEntering;
+        SqlEditor.PreviewKeyDown += SqlEditor_PreviewKeyDown;
+    }
+
+    private void SqlEditor_TextEntered(object sender, TextCompositionEventArgs e)
+    {
+        if (string.IsNullOrEmpty(e.Text)) return;
+        var ch = e.Text[0];
+        if (char.IsLetterOrDigit(ch) || ch == '_' || ch == '.')
+        {
+            ShowSqlCompletion(false);
+        }
+    }
+
+    private void SqlEditor_TextEntering(object sender, TextCompositionEventArgs e)
+    {
+        if (e.Text.Length > 0 && _completionWindow != null)
+        {
+            var ch = e.Text[0];
+            if (!char.IsLetterOrDigit(ch) && ch != '_' && ch != '.')
+            {
+                _completionWindow.CompletionList.RequestInsertion(e);
+            }
+        }
+    }
+
+    private void SqlEditor_PreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Space && Keyboard.Modifiers.HasFlag(ModifierKeys.Control))
+        {
+            ShowSqlCompletion(true);
+            e.Handled = true;
+        }
+    }
+
+    private void ShowSqlCompletion(bool force)
+    {
+        var segment = CurrentCompletionSegment();
+        var prefix = SqlEditor.Document.GetText(segment.StartOffset, segment.Length).TrimStart('"', '[', '`');
+        var suggestions = BuildSqlCompletionSuggestions(prefix, force).ToList();
+        if (suggestions.Count == 0)
+        {
+            _completionWindow?.Close();
+            return;
+        }
+
+        _completionWindow?.Close();
+        _completionWindow = new CompletionWindow(SqlEditor.TextArea)
+        {
+            StartOffset = segment.StartOffset,
+            EndOffset = segment.EndOffset
+        };
+        var data = _completionWindow.CompletionList.CompletionData;
+        foreach (var suggestion in suggestions)
+        {
+            data.Add(new SqlCompletionData(suggestion.Text, suggestion.Content, suggestion.Description, suggestion.Priority));
+        }
+        _completionWindow.Closed += (_, _) => _completionWindow = null;
+        _completionWindow.Show();
+    }
+
+    private TextSegment CurrentCompletionSegment()
+    {
+        var offset = SqlEditor.CaretOffset;
+        var text = SqlEditor.Document.Text;
+        var start = offset;
+        while (start > 0)
+        {
+            var ch = text[start - 1];
+            if (!char.IsLetterOrDigit(ch) && ch != '_' && ch != '.' && ch != '"' && ch != '[' && ch != ']' && ch != '`') break;
+            start--;
+        }
+        return new TextSegment { StartOffset = start, Length = offset - start };
+    }
+
+    private IEnumerable<SqlSuggestion> BuildSqlCompletionSuggestions(string prefix, bool force)
+    {
+        var normalizedPrefix = prefix.Trim();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var suggestion in StaticSqlSuggestions())
+        {
+            if (MatchesCompletionPrefix(suggestion.Text, normalizedPrefix, force) && seen.Add(suggestion.Text)) yield return suggestion;
+        }
+
+        foreach (var dataset in _workspace.SnapshotDatasets().OrderBy(d => d.Name))
+        {
+            var name = Workspace.SafeName(dataset.Name);
+            if (MatchesCompletionPrefix(name, normalizedPrefix, force) && seen.Add(name))
+            {
+                yield return new SqlSuggestion(name, name, $"Local dataset ({dataset.RowCount:N0} rows)", 1.0);
+            }
+        }
+
+        foreach (var obj in _memoryCompletionObjects.OrderBy(o => o.ObjectType).ThenBy(o => o.Name))
+        {
+            var name = obj.Name;
+            if (MatchesCompletionPrefix(name, normalizedPrefix, force) && seen.Add(name))
+            {
+                yield return new SqlSuggestion(name, name, $"In-Memory {obj.ObjectType}" + (string.IsNullOrWhiteSpace(obj.Detail) ? "" : $" {obj.Detail}"), 0.95);
+            }
+        }
+    }
+
+    private static bool MatchesCompletionPrefix(string text, string prefix, bool force)
+    {
+        if (force || string.IsNullOrWhiteSpace(prefix)) return true;
+        return text.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) ||
+               text.Contains(prefix, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static IEnumerable<SqlSuggestion> StaticSqlSuggestions()
+    {
+        string[] keywords =
+        [
+            "select", "from", "where", "join", "left join", "inner join", "group by", "order by", "having",
+            "limit", "create table", "create temp table", "create view", "create temp view", "create macro",
+            "create index", "create sequence", "create schema", "drop table", "drop view", "drop macro",
+            "insert into", "copy", "describe", "show tables", "with", "as", "case", "when", "then", "else", "end",
+            "and", "or", "not", "is null", "is not null", "union all"
+        ];
+        foreach (var keyword in keywords)
+        {
+            yield return new SqlSuggestion(keyword, keyword, "SQL keyword", 0.8);
+        }
+
+        string[] functions =
+        [
+            "count()", "sum()", "avg()", "min()", "max()", "coalesce()", "nullif()", "upper()", "lower()", "trim()",
+            "regexp_replace()", "regexp_matches()", "strptime()", "strftime()", "cast()", "try_cast()", "round()",
+            "abs()", "length()", "substring()", "replace()", "split_part()", "date_diff()", "date_trunc()",
+            "row_number() over ()", "rank() over ()", "dense_rank() over ()"
+        ];
+        foreach (var function in functions)
+        {
+            yield return new SqlSuggestion(function, function, "DuckDB function", 0.7);
+        }
     }
 
     private async void Import_Click(object sender, RoutedEventArgs e)
@@ -521,6 +675,8 @@ public partial class MainWindow : Window
         try
         {
             var objects = await _engine.GetInMemoryObjectsAsync(CancellationToken.None);
+            _memoryCompletionObjects.Clear();
+            _memoryCompletionObjects.AddRange(objects);
             MemoryTree.Items.Clear();
             var groups = objects
                 .GroupBy(o => MemoryGroupName(o.ObjectType))
@@ -1372,6 +1528,30 @@ public partial class MainWindow : Window
         public TextBlock? FileNameText { get; set; }
         public ProgressBar? Progress { get; set; }
         public TextBlock? StatusText { get; set; }
+    }
+
+    private sealed record SqlSuggestion(string Text, string Content, string Description, double Priority);
+
+    private sealed class SqlCompletionData : ICompletionData
+    {
+        public SqlCompletionData(string text, string content, string description, double priority)
+        {
+            Text = text;
+            Content = content;
+            Description = description;
+            Priority = priority;
+        }
+
+        public ImageSource? Image => null;
+        public string Text { get; }
+        public object Content { get; }
+        public object Description { get; }
+        public double Priority { get; }
+
+        public void Complete(TextArea textArea, ISegment completionSegment, EventArgs insertionRequestEventArgs)
+        {
+            textArea.Document.Replace(completionSegment, Text);
+        }
     }
 
     private static string? Prompt(string title, string label, string defaultValue)

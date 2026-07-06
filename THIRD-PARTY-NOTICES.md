@@ -14,6 +14,7 @@ Generation command:
 
 | Relationship | Package | Version | License metadata | License URL | Project URL | Authors |
 |---|---|---:|---|---|---|---|
+| Direct | AvalonEdit | 6.3.1.120 | MIT | https://licenses.nuget.org/MIT | http://www.avalonedit.net/ | AvalonEdit Contributors |
 | Direct | CommunityToolkit.Mvvm | 8.4.2 | MIT | https://licenses.nuget.org/MIT | https://github.com/CommunityToolkit/dotnet | Microsoft |
 | Direct | CsvHelper | 33.1.0 | MS-PL OR Apache-2.0 | https://licenses.nuget.org/MS-PL%20OR%20Apache-2.0 | https://joshclose.github.io/CsvHelper/ | Josh Close |
 | Direct | DuckDB.NET.Data.Full | 1.5.3 | MIT | https://licenses.nuget.org/MIT | https://github.com/Giorgi/DuckDB.NET | Giorgi Dalakishvili |
