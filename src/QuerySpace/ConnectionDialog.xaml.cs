@@ -68,6 +68,7 @@ public partial class ConnectionDialog : Window
             SnowName.Text = c.Name;
             SnowAccount.Text = cfg.GetValueOrDefault("account", "");
             SnowUser.Text = cfg.GetValueOrDefault("user", "");
+            SetComboBoxByTag(SnowAuthType, cfg.GetValueOrDefault("authType", "pat"));
             SnowWarehouse.Text = cfg.GetValueOrDefault("warehouse", "");
             SnowDatabase.Text = cfg.GetValueOrDefault("database", "");
             SnowSchema.Text = cfg.GetValueOrDefault("schema", "");
@@ -268,6 +269,7 @@ public partial class ConnectionDialog : Window
             {
                 ["account"] = SnowAccount.Text.Trim(),
                 ["user"] = SnowUser.Text.Trim(),
+                ["authType"] = SelectedComboBoxTag(SnowAuthType, "pat"),
                 ["warehouse"] = SnowWarehouse.Text.Trim(),
                 ["database"] = SnowDatabase.Text.Trim(),
                 ["schema"] = SnowSchema.Text.Trim(),
@@ -287,5 +289,25 @@ public partial class ConnectionDialog : Window
                 ["trusted"] = (OdbcTrusted.IsChecked == true).ToString().ToLowerInvariant()
             };
         }
+    }
+
+    private static string SelectedComboBoxTag(ComboBox comboBox, string defaultValue)
+    {
+        return comboBox.SelectedItem is ComboBoxItem item && item.Tag is string tag
+            ? tag
+            : defaultValue;
+    }
+
+    private static void SetComboBoxByTag(ComboBox comboBox, string tag)
+    {
+        foreach (var item in comboBox.Items.OfType<ComboBoxItem>())
+        {
+            if (item.Tag is string itemTag && itemTag.Equals(tag, StringComparison.OrdinalIgnoreCase))
+            {
+                comboBox.SelectedItem = item;
+                return;
+            }
+        }
+        comboBox.SelectedIndex = 0;
     }
 }

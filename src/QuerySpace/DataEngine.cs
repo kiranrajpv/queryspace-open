@@ -926,11 +926,15 @@ public sealed class DataEngine
 
     private static string BuildSnowflakeConnectionString(Dictionary<string, string> cfg, string token)
     {
+        var authType = cfg.GetValueOrDefault("authType", "pat");
+        var authenticator = authType.Equals("oauth", StringComparison.OrdinalIgnoreCase)
+            ? "oauth"
+            : "programmatic_access_token";
         var parts = new[]
         {
             $"account={cfg.GetValueOrDefault("account", "")}",
             $"user={cfg.GetValueOrDefault("user", "")}",
-            $"authenticator=oauth",
+            $"authenticator={authenticator}",
             $"token={token}",
             $"warehouse={cfg.GetValueOrDefault("warehouse", "")}",
             $"db={cfg.GetValueOrDefault("database", "")}",
