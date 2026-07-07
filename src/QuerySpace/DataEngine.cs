@@ -834,8 +834,16 @@ public sealed class DataEngine
         try
         {
             await using var connection = OpenDatabaseConnection(new SavedConnection { Kind = kind, Config = config }, password);
-            await connection.OpenAsync(timeout.Token);
-            await ExecuteConnectionTestQueryAsync(connection, kind, timeout.Token);
+            if (kind.Equals("snowflake", StringComparison.OrdinalIgnoreCase))
+            {
+                await connection.OpenAsync(CancellationToken.None).WaitAsync(timeout.Token);
+                await ExecuteConnectionTestQueryAsync(connection, kind, CancellationToken.None).WaitAsync(timeout.Token);
+            }
+            else
+            {
+                await connection.OpenAsync(timeout.Token);
+                await ExecuteConnectionTestQueryAsync(connection, kind, timeout.Token);
+            }
         }
         catch (OperationCanceledException) when (!token.IsCancellationRequested)
         {
@@ -969,10 +977,7 @@ public sealed class DataEngine
         var builder = new DbConnectionStringBuilder
         {
             ["account"] = cfg.GetValueOrDefault("account", ""),
-            ["user"] = cfg.GetValueOrDefault("user", ""),
-            ["CONNECTION_TIMEOUT"] = "15",
-            ["RETRY_TIMEOUT"] = "15",
-            ["MAXHTTPRETRIES"] = "1"
+            ["user"] = cfg.GetValueOrDefault("user", "")
         };
         AddConnectionStringValue(builder, "warehouse", cfg.GetValueOrDefault("warehouse", ""));
         AddConnectionStringValue(builder, "db", cfg.GetValueOrDefault("database", ""));
