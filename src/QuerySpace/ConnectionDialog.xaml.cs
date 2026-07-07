@@ -25,6 +25,23 @@ public partial class ConnectionDialog : Window
         if (existing != null) Populate(existing);
     }
 
+    private string CapturedSecretOrExisting()
+    {
+        var captured = Tabs.SelectedIndex switch
+        {
+            1 => SqlSecret.Password,
+            2 => SnowToken.Password,
+            _ => OdbcSecret.Password
+        };
+
+        if (!string.IsNullOrEmpty(captured) || _existing == null)
+        {
+            return captured;
+        }
+
+        return _workspace.GetSecret(_existing.Id);
+    }
+
     private void LoadOdbcDsns()
     {
         var names = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -68,7 +85,7 @@ public partial class ConnectionDialog : Window
             SnowName.Text = c.Name;
             SnowAccount.Text = cfg.GetValueOrDefault("account", "");
             SnowUser.Text = cfg.GetValueOrDefault("user", "");
-            SetComboBoxByTag(SnowAuthType, cfg.GetValueOrDefault("authType", "pat"));
+            SetComboBoxByTag(SnowAuthType, cfg.GetValueOrDefault("authType", "password"));
             SnowWarehouse.Text = cfg.GetValueOrDefault("warehouse", "");
             SnowDatabase.Text = cfg.GetValueOrDefault("database", "");
             SnowSchema.Text = cfg.GetValueOrDefault("schema", "");
@@ -138,9 +155,12 @@ public partial class ConnectionDialog : Window
         }
         catch (Exception ex)
         {
-            var detail = Kind == "sqlserver"
-                ? ex.Message + "\n\n" + DataEngine.SqlServerConnectionDiagnostic(Config)
-                : ex.Message;
+            var detail = Kind switch
+            {
+                "sqlserver" => ex.Message + "\n\n" + DataEngine.SqlServerConnectionDiagnostic(Config),
+                "snowflake" => ex.Message + "\n\n" + DataEngine.SnowflakeConnectionDiagnostic(Config),
+                _ => ex.Message
+            };
             MessageBox.Show(this, detail, "Connection test failed", MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
@@ -249,7 +269,7 @@ public partial class ConnectionDialog : Window
         {
             ConnectionName = SqlName.Text.Trim();
             Kind = "sqlserver";
-            Secret = SqlSecret.Password;
+            Secret = CapturedSecretOrExisting();
             Config = new()
             {
                 ["server"] = SqlServer.Text.Trim(),
@@ -264,12 +284,12 @@ public partial class ConnectionDialog : Window
         {
             ConnectionName = SnowName.Text.Trim();
             Kind = "snowflake";
-            Secret = SnowToken.Password;
+            Secret = CapturedSecretOrExisting();
             Config = new()
             {
                 ["account"] = SnowAccount.Text.Trim(),
                 ["user"] = SnowUser.Text.Trim(),
-                ["authType"] = SelectedComboBoxTag(SnowAuthType, "pat"),
+                ["authType"] = SelectedComboBoxTag(SnowAuthType, "password"),
                 ["warehouse"] = SnowWarehouse.Text.Trim(),
                 ["database"] = SnowDatabase.Text.Trim(),
                 ["schema"] = SnowSchema.Text.Trim(),
@@ -280,7 +300,7 @@ public partial class ConnectionDialog : Window
         {
             ConnectionName = OdbcName.Text.Trim();
             Kind = "odbc";
-            Secret = OdbcSecret.Password;
+            Secret = CapturedSecretOrExisting();
             Config = new()
             {
                 ["dsn"] = OdbcDsn.Text.Trim(),

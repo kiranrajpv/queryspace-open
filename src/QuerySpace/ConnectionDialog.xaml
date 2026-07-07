@@ -57,10 +57,11 @@
                     <TextBlock Text="User" Grid.Row="2" Style="{StaticResource FormLabelStyle}"/><TextBox x:Name="SnowUser" Grid.Row="2" Grid.Column="1" Style="{StaticResource FormTextBoxStyle}"/>
                     <TextBlock Text="Auth method" Grid.Row="3" Style="{StaticResource FormLabelStyle}"/>
                     <ComboBox x:Name="SnowAuthType" Grid.Row="3" Grid.Column="1" SelectedIndex="0" Style="{StaticResource FormComboBoxStyle}">
+                        <ComboBoxItem Tag="password">Password</ComboBoxItem>
                         <ComboBoxItem Tag="pat">Programmatic Access Token (PAT)</ComboBoxItem>
                         <ComboBoxItem Tag="oauth">OAuth access token</ComboBoxItem>
                     </ComboBox>
-                    <TextBlock Text="PAT / token" Grid.Row="4" Style="{StaticResource FormLabelStyle}"/><PasswordBox x:Name="SnowToken" Grid.Row="4" Grid.Column="1" Style="{StaticResource FormPasswordBoxStyle}"/>
+                    <TextBlock Text="Password / PAT / token" Grid.Row="4" Style="{StaticResource FormLabelStyle}"/><PasswordBox x:Name="SnowToken" Grid.Row="4" Grid.Column="1" Style="{StaticResource FormPasswordBoxStyle}"/>
                     <TextBlock Text="Warehouse" Grid.Row="5" Style="{StaticResource FormLabelStyle}"/><TextBox x:Name="SnowWarehouse" Grid.Row="5" Grid.Column="1" Style="{StaticResource FormTextBoxStyle}"/>
                     <TextBlock Text="Database" Grid.Row="6" Style="{StaticResource FormLabelStyle}"/><TextBox x:Name="SnowDatabase" Grid.Row="6" Grid.Column="1" Style="{StaticResource FormTextBoxStyle}"/>
                     <TextBlock Text="Schema" Grid.Row="7" Style="{StaticResource FormLabelStyle}"/><TextBox x:Name="SnowSchema" Grid.Row="7" Grid.Column="1" Style="{StaticResource FormTextBoxStyle}"/>

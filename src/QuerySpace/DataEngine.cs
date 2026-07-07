@@ -875,6 +875,22 @@ public sealed class DataEngine
             $"- Database: {config.GetValueOrDefault("database", "")}";
     }
 
+    public static string SnowflakeConnectionDiagnostic(Dictionary<string, string> config)
+    {
+        return
+            "Current Snowflake settings used by QuerySpace:\n" +
+            $"- Account: {config.GetValueOrDefault("account", "")}\n" +
+            $"- User: {config.GetValueOrDefault("user", "")}\n" +
+            $"- Auth method: {config.GetValueOrDefault("authType", "password")}\n" +
+            $"- Warehouse: {config.GetValueOrDefault("warehouse", "")}\n" +
+            $"- Database: {config.GetValueOrDefault("database", "")}\n" +
+            $"- Schema: {config.GetValueOrDefault("schema", "")}\n" +
+            $"- Role: {config.GetValueOrDefault("role", "")}\n\n" +
+            "For Snowflake's .NET password connection string, use Auth method = Password and paste the password in Password / PAT / token.\n" +
+            "For a Snowflake Programmatic Access Token, use Auth method = Programmatic Access Token (PAT).";
+    }
+
+
     public static bool IsSqlServerUntrustedCertificateError(Exception ex)
     {
         for (Exception? current = ex; current != null; current = current.InnerException)
@@ -926,22 +942,41 @@ public sealed class DataEngine
 
     private static string BuildSnowflakeConnectionString(Dictionary<string, string> cfg, string token)
     {
-        var authType = cfg.GetValueOrDefault("authType", "pat");
-        var authenticator = authType.Equals("oauth", StringComparison.OrdinalIgnoreCase)
-            ? "oauth"
-            : "programmatic_access_token";
-        var parts = new[]
+        var authType = cfg.GetValueOrDefault("authType", "password");
+        var builder = new DbConnectionStringBuilder
         {
-            $"account={cfg.GetValueOrDefault("account", "")}",
-            $"user={cfg.GetValueOrDefault("user", "")}",
-            $"authenticator={authenticator}",
-            $"token={token}",
-            $"warehouse={cfg.GetValueOrDefault("warehouse", "")}",
-            $"db={cfg.GetValueOrDefault("database", "")}",
-            $"schema={cfg.GetValueOrDefault("schema", "")}",
-            $"role={cfg.GetValueOrDefault("role", "")}"
+            ["account"] = cfg.GetValueOrDefault("account", ""),
+            ["user"] = cfg.GetValueOrDefault("user", "")
         };
-        return string.Join(';', parts.Where(p => !p.EndsWith("=", StringComparison.Ordinal)));
+        AddConnectionStringValue(builder, "warehouse", cfg.GetValueOrDefault("warehouse", ""));
+        AddConnectionStringValue(builder, "db", cfg.GetValueOrDefault("database", ""));
+        AddConnectionStringValue(builder, "schema", cfg.GetValueOrDefault("schema", ""));
+        AddConnectionStringValue(builder, "role", cfg.GetValueOrDefault("role", ""));
+
+        if (authType.Equals("oauth", StringComparison.OrdinalIgnoreCase))
+        {
+            builder["authenticator"] = "oauth";
+            builder["token"] = token;
+        }
+        else if (authType.Equals("pat", StringComparison.OrdinalIgnoreCase))
+        {
+            builder["authenticator"] = "programmatic_access_token";
+            builder["token"] = token;
+        }
+        else
+        {
+            builder["password"] = token;
+        }
+
+        return builder.ConnectionString;
+    }
+
+    private static void AddConnectionStringValue(DbConnectionStringBuilder builder, string key, string value)
+    {
+        if (!string.IsNullOrWhiteSpace(value))
+        {
+            builder[key] = value;
+        }
     }
 
     private static async Task<long> WriteReaderToParquetAsync(DbDataReader reader, string path, int batchSize, long? expectedRows, IProgress<ExtractProgress>? progress, CancellationToken token)

@@ -28,7 +28,7 @@ It provides a local SQL workspace for importing CSV, Excel, and Parquet files, e
 - Tagged SQL transformation analysis for SAP Material projects: validates ECC extract/source columns, pre-load transformed columns, cross-reference usage, and S/4 MDG post-load values from the query result grid.
 - ODBC DSN connection with an editable dropdown populated from Windows ODBC Administrator DSNs.
 - Direct SQL Server connection through Microsoft SqlClient.
-- Snowflake Programmatic Access Token (PAT) connection through Snowflake .NET connector, with OAuth token option.
+- Snowflake connection through Snowflake .NET connector with password, Programmatic Access Token (PAT), or OAuth token option.
 - SAP HANA should be used through ODBC DSN unless your company separately approves SAP's ADO.NET/HANA client redistribution.
 - Passwords/tokens stored with Windows DPAPI for the current Windows user.
 - Base query extraction streams directly into Zstandard-compressed Parquet row groups with progress feedback and cancellation.
@@ -85,7 +85,7 @@ These are referenced directly in [QuerySpace.csproj](src/QuerySpace/QuerySpace.c
 | `Microsoft.Data.SqlClient` | 7.0.2 | MIT | Direct Microsoft SQL Server connection support without requiring ODBC DSN. |
 | `Microsoft.ML` | 5.0.0 | MIT | Supports local CPU-only data-quality analysis capabilities. |
 | `Parquet.Net` | 6.0.3 | MIT | Writes database extraction results directly into Parquet row groups with Zstandard compression. |
-| `Snowflake.Data` | 5.7.0 | Apache-2.0 | Direct Snowflake connection/extraction support using Programmatic Access Token (PAT) or OAuth token configuration. |
+| `Snowflake.Data` | 5.7.0 | Apache-2.0 | Direct Snowflake connection/extraction support using password, Programmatic Access Token (PAT), or OAuth token configuration. |
 | `System.Data.Odbc` | 9.0.7 | .NET runtime package; license metadata not declared in local `.nuspec` | ODBC DSN connectivity for SQL Server, SAP HANA, and other user-configured ODBC data sources. |
 | `System.Security.Cryptography.ProtectedData` | 9.0.13 | MIT | Provides Windows DPAPI integration for encrypted secret storage. |
 
@@ -169,7 +169,7 @@ These are pulled by the direct dependencies above. Versions are from `dotnet lis
 | SQL Server TLS certificate / company root certificate | No | Company/Microsoft certificate infrastructure | Required for trusted encrypted SQL Server connections without `Trust server certificate`. |
 | SAP HANA Client 64-bit / HDBODBC driver | No | SAP license terms; obtain through company SAP portal/SAP Software Download Center | Required when users connect to SAP HANA through a 64-bit ODBC DSN. QuerySpace does not redistribute SAP HANA drivers. |
 | 64-bit ODBC DSNs | No | Configured by user/admin on Windows | Lets QuerySpace connect to HANA, SQL Server, and other ODBC databases through Windows ODBC Administrator. |
-| Snowflake account/PAT or OAuth token | No | Snowflake terms | Optional Snowflake base-query extraction through `Snowflake.Data`. |
+| Snowflake account/password, PAT, or OAuth token | No | Snowflake terms | Optional Snowflake base-query extraction through `Snowflake.Data`. |
 
 ### Dependency/security maintenance commands
 
