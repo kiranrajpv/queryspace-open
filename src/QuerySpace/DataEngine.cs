@@ -827,9 +827,20 @@ public sealed class DataEngine
 
     public static async Task TestDatabaseConnectionAsync(string kind, Dictionary<string, string> config, string password, CancellationToken token)
     {
-        await using var connection = OpenDatabaseConnection(new SavedConnection { Kind = kind, Config = config }, password);
-        await connection.OpenAsync(token);
-        await ExecuteConnectionTestQueryAsync(connection, kind, token);
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(token);
+        var timeoutSeconds = kind.Equals("snowflake", StringComparison.OrdinalIgnoreCase) ? 30 : 20;
+        timeout.CancelAfter(TimeSpan.FromSeconds(timeoutSeconds));
+
+        try
+        {
+            await using var connection = OpenDatabaseConnection(new SavedConnection { Kind = kind, Config = config }, password);
+            await connection.OpenAsync(timeout.Token);
+            await ExecuteConnectionTestQueryAsync(connection, kind, timeout.Token);
+        }
+        catch (OperationCanceledException) when (!token.IsCancellationRequested)
+        {
+            throw new TimeoutException($"{kind} connection test did not complete within {timeoutSeconds} seconds. Check the server/account name, network/VPN/proxy, authentication method, and credentials.");
+        }
     }
 
     private static async Task ExecuteConnectionTestQueryAsync(DbConnection connection, string kind, CancellationToken token)
@@ -877,17 +888,29 @@ public sealed class DataEngine
 
     public static string SnowflakeConnectionDiagnostic(Dictionary<string, string> config)
     {
+        var authType = config.GetValueOrDefault("authType", "password");
+        var authDescription = SnowflakeAuthDescription(authType);
         return
             "Current Snowflake settings used by QuerySpace:\n" +
             $"- Account: {config.GetValueOrDefault("account", "")}\n" +
             $"- User: {config.GetValueOrDefault("user", "")}\n" +
-            $"- Auth method: {config.GetValueOrDefault("authType", "password")}\n" +
+            $"- Auth method: {authDescription}\n" +
             $"- Warehouse: {config.GetValueOrDefault("warehouse", "")}\n" +
             $"- Database: {config.GetValueOrDefault("database", "")}\n" +
             $"- Schema: {config.GetValueOrDefault("schema", "")}\n" +
             $"- Role: {config.GetValueOrDefault("role", "")}\n\n" +
-            "For Snowflake's .NET password connection string, use Auth method = Password and paste the password in Password / PAT / token.\n" +
-            "For a Snowflake Programmatic Access Token, use Auth method = Programmatic Access Token (PAT).";
+            "Sanitized connection string shape:\n" +
+            BuildSnowflakeConnectionString(config, "<hidden>") + "\n\n" +
+            "If you copied Snowflake's .NET Password connection string, choose Auth method = Password and paste the real password in Password / PAT / token.\n" +
+            "If you are using a Snowflake Programmatic Access Token, choose Auth method = Programmatic Access Token (PAT) and paste the PAT value in Password / PAT / token.\n" +
+            "For PAT, the token must belong to the same Snowflake user shown above and must not be expired or revoked.";
+    }
+
+    private static string SnowflakeAuthDescription(string authType)
+    {
+        if (authType.Equals("pat", StringComparison.OrdinalIgnoreCase)) return "Programmatic Access Token (PAT)";
+        if (authType.Equals("oauth", StringComparison.OrdinalIgnoreCase)) return "OAuth access token";
+        return "Password";
     }
 
 
@@ -946,7 +969,10 @@ public sealed class DataEngine
         var builder = new DbConnectionStringBuilder
         {
             ["account"] = cfg.GetValueOrDefault("account", ""),
-            ["user"] = cfg.GetValueOrDefault("user", "")
+            ["user"] = cfg.GetValueOrDefault("user", ""),
+            ["CONNECTION_TIMEOUT"] = "15",
+            ["RETRY_TIMEOUT"] = "15",
+            ["MAXHTTPRETRIES"] = "1"
         };
         AddConnectionStringValue(builder, "warehouse", cfg.GetValueOrDefault("warehouse", ""));
         AddConnectionStringValue(builder, "db", cfg.GetValueOrDefault("database", ""));

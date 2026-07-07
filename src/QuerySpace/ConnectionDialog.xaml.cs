@@ -115,6 +115,9 @@ public partial class ConnectionDialog : Window
 
     private async void Test_Click(object sender, RoutedEventArgs e)
     {
+        TestConnectionButton.IsEnabled = false;
+        var originalContent = TestConnectionButton.Content;
+        TestConnectionButton.Content = "Testing...";
         try
         {
             Capture();
@@ -157,11 +160,16 @@ public partial class ConnectionDialog : Window
         {
             var detail = Kind switch
             {
-                "sqlserver" => ex.Message + "\n\n" + DataEngine.SqlServerConnectionDiagnostic(Config),
-                "snowflake" => ex.Message + "\n\n" + DataEngine.SnowflakeConnectionDiagnostic(Config),
+                "sqlserver" => "Actual SQL Server error:\n" + ex.Message + "\n\n" + DataEngine.SqlServerConnectionDiagnostic(Config),
+                "snowflake" => "Actual Snowflake error:\n" + ex.Message + "\n\n" + DataEngine.SnowflakeConnectionDiagnostic(Config),
                 _ => ex.Message
             };
             MessageBox.Show(this, detail, "Connection test failed", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+        finally
+        {
+            TestConnectionButton.Content = originalContent;
+            TestConnectionButton.IsEnabled = true;
         }
     }
 
