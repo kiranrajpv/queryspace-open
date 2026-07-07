@@ -828,13 +828,14 @@ public sealed class DataEngine
     public static async Task TestDatabaseConnectionAsync(string kind, Dictionary<string, string> config, string password, CancellationToken token)
     {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(token);
-        var timeoutSeconds = kind.Equals("snowflake", StringComparison.OrdinalIgnoreCase) ? 30 : 20;
+        var isSnowflake = kind.Equals("snowflake", StringComparison.OrdinalIgnoreCase);
+        var timeoutSeconds = isSnowflake ? 120 : 20;
         timeout.CancelAfter(TimeSpan.FromSeconds(timeoutSeconds));
 
         try
         {
             await using var connection = OpenDatabaseConnection(new SavedConnection { Kind = kind, Config = config }, password);
-            if (kind.Equals("snowflake", StringComparison.OrdinalIgnoreCase))
+            if (isSnowflake)
             {
                 await connection.OpenAsync(CancellationToken.None).WaitAsync(timeout.Token);
                 await ExecuteConnectionTestQueryAsync(connection, kind, CancellationToken.None).WaitAsync(timeout.Token);
@@ -847,7 +848,10 @@ public sealed class DataEngine
         }
         catch (OperationCanceledException) when (!token.IsCancellationRequested)
         {
-            throw new TimeoutException($"{kind} connection test did not complete within {timeoutSeconds} seconds. Check the server/account name, network/VPN/proxy, authentication method, and credentials.");
+            var accountHint = isSnowflake
+                ? $" Account used: {config.GetValueOrDefault("account", "")}. A timeout usually means QuerySpace could not reach Snowflake through DNS/network/VPN/proxy before authentication completed."
+                : "";
+            throw new TimeoutException($"{kind} connection test did not complete within {timeoutSeconds} seconds.{accountHint} Check the server/account name, network/VPN/proxy, authentication method, and credentials.");
         }
     }
 
@@ -911,7 +915,8 @@ public sealed class DataEngine
             BuildSnowflakeConnectionString(config, "<hidden>") + "\n\n" +
             "If you copied Snowflake's .NET Password connection string, choose Auth method = Password and paste the real password in Password / PAT / token.\n" +
             "If you are using a Snowflake Programmatic Access Token, choose Auth method = Programmatic Access Token (PAT) and paste the PAT value in Password / PAT / token.\n" +
-            "For PAT, the token must belong to the same Snowflake user shown above and must not be expired or revoked.";
+            "For PAT, the token must belong to the same Snowflake user shown above and must not be expired or revoked.\n" +
+            "If testing times out, first try with Warehouse, Database, Schema, and Role blank so only Account + User + PAT are tested.";
     }
 
     private static string SnowflakeAuthDescription(string authType)
