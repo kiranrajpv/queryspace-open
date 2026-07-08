@@ -1058,8 +1058,14 @@ public sealed class DataEngine
         AddConnectionStringValue(builder, "db", cfg.GetValueOrDefault("database", ""));
         AddConnectionStringValue(builder, "schema", cfg.GetValueOrDefault("schema", ""));
         AddConnectionStringValue(builder, "role", cfg.GetValueOrDefault("role", ""));
-        AddConnectionStringValue(builder, "proxyHost", cfg.GetValueOrDefault("proxyHost", ""));
-        AddConnectionStringValue(builder, "proxyPort", cfg.GetValueOrDefault("proxyPort", ""));
+        var proxyHost = cfg.GetValueOrDefault("proxyHost", "");
+        var proxyPort = cfg.GetValueOrDefault("proxyPort", "");
+        if (!string.IsNullOrWhiteSpace(proxyHost) && !string.IsNullOrWhiteSpace(proxyPort))
+        {
+            builder["useProxy"] = "true";
+            builder["proxyHost"] = proxyHost;
+            builder["proxyPort"] = proxyPort;
+        }
 
         if (authType.Equals("oauth", StringComparison.OrdinalIgnoreCase))
         {
