@@ -54,3 +54,57 @@ Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: de
 
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Description: "Launch {#MyAppName}"; Flags: nowait postinstall skipifsilent
+
+[Code]
+const
+  QuerySpaceUninstallKey = 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{9C96ECF5-AB4E-4947-9F1F-8E22A3F4769F}_is1';
+
+function QueryInstalledVersion(var InstalledVersion: String): Boolean;
+begin
+  Result :=
+    RegQueryStringValue(HKLM, QuerySpaceUninstallKey, 'DisplayVersion', InstalledVersion) or
+    RegQueryStringValue(HKCU, QuerySpaceUninstallKey, 'DisplayVersion', InstalledVersion);
+end;
+
+function QueryUninstallCommand(var UninstallCommand: String): Boolean;
+begin
+  Result :=
+    RegQueryStringValue(HKLM, QuerySpaceUninstallKey, 'UninstallString', UninstallCommand) or
+    RegQueryStringValue(HKCU, QuerySpaceUninstallKey, 'UninstallString', UninstallCommand);
+end;
+
+function InitializeSetup(): Boolean;
+var
+  InstalledVersion: String;
+  UninstallCommand: String;
+  ResultCode: Integer;
+begin
+  Result := True;
+
+  if QueryInstalledVersion(InstalledVersion) and QueryUninstallCommand(UninstallCommand) then
+  begin
+    if MsgBox(
+      '{#MyAppName} version ' + InstalledVersion + ' is already installed.' + #13#10 + #13#10 +
+      'Setup will uninstall the previous version before installing this version. Continue?',
+      mbConfirmation,
+      MB_YESNO) <> IDYES then
+    begin
+      Result := False;
+      Exit;
+    end;
+
+    if not Exec(RemoveQuotes(UninstallCommand), '/SILENT /SUPPRESSMSGBOXES /NORESTART', '', SW_SHOW, ewWaitUntilTerminated, ResultCode) then
+    begin
+      MsgBox('Setup could not start the previous version uninstaller. Please uninstall {#MyAppName} from Windows Apps & Features, then run setup again.', mbError, MB_OK);
+      Result := False;
+      Exit;
+    end;
+
+    if ResultCode <> 0 then
+    begin
+      MsgBox('The previous version uninstaller returned exit code ' + IntToStr(ResultCode) + '. Please uninstall {#MyAppName} from Windows Apps & Features, then run setup again.', mbError, MB_OK);
+      Result := False;
+      Exit;
+    end;
+  end;
+end;
