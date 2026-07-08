@@ -50,7 +50,7 @@
                 <Grid Margin="12">
                     <Grid.ColumnDefinitions><ColumnDefinition Width="150"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
                     <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
                     <TextBlock Text="Connection name" Grid.Row="0" Style="{StaticResource FormLabelStyle}"/><TextBox x:Name="SnowName" Grid.Row="0" Grid.Column="1" Style="{StaticResource FormTextBoxStyle}"/>
                     <TextBlock Text="Account" Grid.Row="1" Style="{StaticResource FormLabelStyle}"/><TextBox x:Name="SnowAccount" Grid.Row="1" Grid.Column="1" Style="{StaticResource FormTextBoxStyle}"/>
@@ -66,6 +66,8 @@
                     <TextBlock Text="Database" Grid.Row="6" Style="{StaticResource FormLabelStyle}"/><TextBox x:Name="SnowDatabase" Grid.Row="6" Grid.Column="1" Style="{StaticResource FormTextBoxStyle}"/>
                     <TextBlock Text="Schema" Grid.Row="7" Style="{StaticResource FormLabelStyle}"/><TextBox x:Name="SnowSchema" Grid.Row="7" Grid.Column="1" Style="{StaticResource FormTextBoxStyle}"/>
                     <TextBlock Text="Role" Grid.Row="8" Style="{StaticResource FormLabelStyle}"/><TextBox x:Name="SnowRole" Grid.Row="8" Grid.Column="1" Style="{StaticResource FormTextBoxStyle}"/>
+                    <TextBlock Text="Proxy host" Grid.Row="9" Style="{StaticResource FormLabelStyle}"/><TextBox x:Name="SnowProxyHost" Grid.Row="9" Grid.Column="1" Style="{StaticResource FormTextBoxStyle}" ToolTip="Optional corporate proxy host for Snowflake .NET driver"/>
+                    <TextBlock Text="Proxy port" Grid.Row="10" Style="{StaticResource FormLabelStyle}"/><TextBox x:Name="SnowProxyPort" Grid.Row="10" Grid.Column="1" Style="{StaticResource FormTextBoxStyle}" ToolTip="Optional corporate proxy port, for example 8080"/>
                 </Grid>
             </TabItem>
         </TabControl>

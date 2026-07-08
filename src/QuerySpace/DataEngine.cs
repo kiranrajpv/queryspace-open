@@ -820,7 +820,7 @@ public sealed class DataEngine
         {
             "odbc" => new OdbcConnection(BuildOdbcConnectionString(cfg, password)),
             "sqlserver" => new SqlConnection(BuildSqlServerConnectionString(cfg, password)),
-            "snowflake" => new SnowflakeDbConnection { ConnectionString = BuildSnowflakeConnectionString(cfg, password) },
+            "snowflake" => BuildSnowflakeConnection(cfg, password),
             _ => throw new InvalidOperationException("C# version currently supports ODBC, SQL Server, and Snowflake. Use SAP HANA through an ODBC DSN.")
         };
     }
@@ -834,14 +834,13 @@ public sealed class DataEngine
 
         try
         {
-            await using var connection = OpenDatabaseConnection(new SavedConnection { Kind = kind, Config = config }, password);
             if (isSnowflake)
             {
-                await connection.OpenAsync(CancellationToken.None).WaitAsync(timeout.Token);
-                await ExecuteConnectionTestQueryAsync(connection, kind, CancellationToken.None).WaitAsync(timeout.Token);
+                await TestSnowflakeDatabaseConnectionAsync(config, password, timeout.Token);
             }
             else
             {
+                await using var connection = OpenDatabaseConnection(new SavedConnection { Kind = kind, Config = config }, password);
                 await connection.OpenAsync(timeout.Token);
                 await ExecuteConnectionTestQueryAsync(connection, kind, timeout.Token);
             }
@@ -852,6 +851,45 @@ public sealed class DataEngine
                 ? $" Account used: {config.GetValueOrDefault("account", "")}. A timeout usually means QuerySpace could not reach Snowflake through DNS/network/VPN/proxy before authentication completed."
                 : "";
             throw new TimeoutException($"{kind} connection test did not complete within {timeoutSeconds} seconds.{accountHint} Check the server/account name, network/VPN/proxy, authentication method, and credentials.");
+        }
+    }
+
+    private static async Task TestSnowflakeDatabaseConnectionAsync(Dictionary<string, string> config, string password, CancellationToken timeoutToken)
+    {
+        var connection = OpenDatabaseConnection(new SavedConnection { Kind = "snowflake", Config = config }, password);
+        var disposeImmediately = true;
+        try
+        {
+            var openTask = connection.OpenAsync(CancellationToken.None);
+            var completed = await Task.WhenAny(openTask, Task.Delay(Timeout.InfiniteTimeSpan, timeoutToken));
+            if (completed != openTask)
+            {
+                disposeImmediately = false;
+                _ = openTask.ContinueWith(_ => SafeDisposeConnection(connection), TaskScheduler.Default);
+                throw new OperationCanceledException(timeoutToken);
+            }
+
+            await openTask;
+            await ExecuteConnectionTestQueryAsync(connection, "snowflake", CancellationToken.None).WaitAsync(timeoutToken);
+        }
+        finally
+        {
+            if (disposeImmediately)
+            {
+                await connection.DisposeAsync();
+            }
+        }
+    }
+
+    private static void SafeDisposeConnection(DbConnection connection)
+    {
+        try
+        {
+            connection.Dispose();
+        }
+        catch
+        {
+            // Ignore cleanup errors after a timed-out Snowflake OpenAsync. The caller already received the timeout.
         }
     }
 
@@ -910,11 +948,14 @@ public sealed class DataEngine
             $"- Warehouse: {config.GetValueOrDefault("warehouse", "")}\n" +
             $"- Database: {config.GetValueOrDefault("database", "")}\n" +
             $"- Schema: {config.GetValueOrDefault("schema", "")}\n" +
-            $"- Role: {config.GetValueOrDefault("role", "")}\n\n" +
+            $"- Role: {config.GetValueOrDefault("role", "")}\n" +
+            $"- Proxy host: {config.GetValueOrDefault("proxyHost", "")}\n" +
+            $"- Proxy port: {config.GetValueOrDefault("proxyPort", "")}\n\n" +
             "Sanitized connection string shape:\n" +
-            BuildSnowflakeConnectionString(config, "<hidden>") + "\n\n" +
+            BuildSnowflakeConnectionString(config, "<hidden>", includeSensitiveAuthInConnectionString: true) + "\n\n" +
             "If you copied Snowflake's .NET Password connection string, choose Auth method = Password and paste the real password in Password / PAT / token.\n" +
             "If you are using a Snowflake Programmatic Access Token, choose Auth method = Programmatic Access Token (PAT) and paste the PAT value in Password / PAT / token.\n" +
+            "For PAT/OAuth, QuerySpace passes the token through SnowflakeDbConnection.Token instead of keeping the token in the connection string.\n" +
             "For PAT, the token must belong to the same Snowflake user shown above and must not be expired or revoked.\n" +
             "If testing times out, first try with Warehouse, Database, Schema, and Role blank so only Account + User + PAT are tested.";
     }
@@ -976,7 +1017,36 @@ public sealed class DataEngine
         return builder.ConnectionString;
     }
 
-    private static string BuildSnowflakeConnectionString(Dictionary<string, string> cfg, string token)
+    private static SnowflakeDbConnection BuildSnowflakeConnection(Dictionary<string, string> cfg, string secret)
+    {
+        var authType = cfg.GetValueOrDefault("authType", "password");
+        var includeSensitiveAuthInConnectionString = authType.Equals("password", StringComparison.OrdinalIgnoreCase);
+        var connection = new SnowflakeDbConnection
+        {
+            ConnectionString = BuildSnowflakeConnectionString(cfg, secret, includeSensitiveAuthInConnectionString)
+        };
+
+        if (authType.Equals("oauth", StringComparison.OrdinalIgnoreCase) ||
+            authType.Equals("pat", StringComparison.OrdinalIgnoreCase))
+        {
+            connection.Token = ToSecureString(secret);
+        }
+
+        return connection;
+    }
+
+    private static System.Security.SecureString ToSecureString(string value)
+    {
+        var secure = new System.Security.SecureString();
+        foreach (var character in value)
+        {
+            secure.AppendChar(character);
+        }
+        secure.MakeReadOnly();
+        return secure;
+    }
+
+    private static string BuildSnowflakeConnectionString(Dictionary<string, string> cfg, string token, bool includeSensitiveAuthInConnectionString)
     {
         var authType = cfg.GetValueOrDefault("authType", "password");
         var builder = new DbConnectionStringBuilder
@@ -988,16 +1058,18 @@ public sealed class DataEngine
         AddConnectionStringValue(builder, "db", cfg.GetValueOrDefault("database", ""));
         AddConnectionStringValue(builder, "schema", cfg.GetValueOrDefault("schema", ""));
         AddConnectionStringValue(builder, "role", cfg.GetValueOrDefault("role", ""));
+        AddConnectionStringValue(builder, "proxyHost", cfg.GetValueOrDefault("proxyHost", ""));
+        AddConnectionStringValue(builder, "proxyPort", cfg.GetValueOrDefault("proxyPort", ""));
 
         if (authType.Equals("oauth", StringComparison.OrdinalIgnoreCase))
         {
             builder["authenticator"] = "oauth";
-            builder["token"] = token;
+            if (includeSensitiveAuthInConnectionString) builder["token"] = token;
         }
         else if (authType.Equals("pat", StringComparison.OrdinalIgnoreCase))
         {
             builder["authenticator"] = "programmatic_access_token";
-            builder["token"] = token;
+            if (includeSensitiveAuthInConnectionString) builder["token"] = token;
         }
         else
         {

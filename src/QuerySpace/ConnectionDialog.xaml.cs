@@ -90,6 +90,8 @@ public partial class ConnectionDialog : Window
             SnowDatabase.Text = cfg.GetValueOrDefault("database", "");
             SnowSchema.Text = cfg.GetValueOrDefault("schema", "");
             SnowRole.Text = cfg.GetValueOrDefault("role", "");
+            SnowProxyHost.Text = cfg.GetValueOrDefault("proxyHost", "");
+            SnowProxyPort.Text = cfg.GetValueOrDefault("proxyPort", "");
         }
         else
         {
@@ -301,7 +303,9 @@ public partial class ConnectionDialog : Window
                 ["warehouse"] = SnowWarehouse.Text.Trim(),
                 ["database"] = SnowDatabase.Text.Trim(),
                 ["schema"] = SnowSchema.Text.Trim(),
-                ["role"] = SnowRole.Text.Trim()
+                ["role"] = SnowRole.Text.Trim(),
+                ["proxyHost"] = SnowProxyHost.Text.Trim(),
+                ["proxyPort"] = SnowProxyPort.Text.Trim()
             };
         }
         else
