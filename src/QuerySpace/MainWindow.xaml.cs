@@ -12,6 +12,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Threading;
 
 namespace QuerySpace;
 
@@ -21,15 +22,18 @@ public partial class MainWindow : Window
     private DataEngine _engine;
     private CancellationTokenSource? _extractCts;
     private DataTable? _currentResults;
+    private const string LocalDatasetDragFormat = "QuerySpace.LocalDataset";
     private const int MaxScriptExecutions = 3;
     private readonly Dictionary<string, ScriptExecutionState> _scriptExecutionStates = new(StringComparer.OrdinalIgnoreCase);
     private readonly Queue<string> _scriptExecutionQueue = new();
     private readonly List<InMemoryObjectInfo> _memoryCompletionObjects = new();
+    private readonly List<QueryDocument> _queryDocuments = new();
     private CompletionWindow? _completionWindow;
-    private string? _currentSqlPath;
-    private string _lastSavedSqlText = "";
+    private QueryDocument? _activeQueryDocument;
     private bool _suppressSqlDirtyTracking;
+    private Point? _datasetDragStartPoint;
     private int _activeScriptExecutions;
+    private int _untitledQueryCounter;
 
     public MainWindow()
     {
@@ -37,6 +41,7 @@ public partial class MainWindow : Window
         WindowTitleBar.Apply(this);
         _engine = new DataEngine(_workspace);
         InitializeSqlEditor();
+        CreateQueryDocument("Untitled 1", null, SqlEditor.Text, true, true);
         Closing += MainWindow_Closing;
         RefreshExplorer();
         _ = RefreshInMemoryExplorerAsync();
@@ -45,7 +50,7 @@ public partial class MainWindow : Window
 
     private void MainWindow_Closing(object? sender, System.ComponentModel.CancelEventArgs e)
     {
-        if (!ConfirmSaveSqlIfDirty())
+        if (!ConfirmSaveAllQueryTabs())
         {
             e.Cancel = true;
         }
@@ -63,13 +68,16 @@ public partial class MainWindow : Window
         SqlEditor.TextArea.TextEntering += SqlEditor_TextEntering;
         SqlEditor.PreviewKeyDown += SqlEditor_PreviewKeyDown;
         SqlEditor.TextChanged += SqlEditor_TextChanged;
-        _lastSavedSqlText = SqlEditor.Text;
-        UpdateEditorFileStatus();
     }
 
     private void SqlEditor_TextChanged(object? sender, EventArgs e)
     {
         if (_suppressSqlDirtyTracking) return;
+        if (_activeQueryDocument is { } document)
+        {
+            document.Text = SqlEditor.Text;
+            UpdateQueryTabHeader(document);
+        }
         UpdateEditorFileStatus();
     }
 
@@ -102,6 +110,57 @@ public partial class MainWindow : Window
             ShowSqlCompletion(true);
             e.Handled = true;
         }
+    }
+
+    private void DatasetsTree_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        _datasetDragStartPoint = e.GetPosition(DatasetsTree);
+    }
+
+    private void DatasetsTree_PreviewMouseMove(object sender, MouseEventArgs e)
+    {
+        if (e.LeftButton != MouseButtonState.Pressed || _datasetDragStartPoint is not { } startPoint) return;
+
+        var currentPoint = e.GetPosition(DatasetsTree);
+        if (Math.Abs(currentPoint.X - startPoint.X) < SystemParameters.MinimumHorizontalDragDistance &&
+            Math.Abs(currentPoint.Y - startPoint.Y) < SystemParameters.MinimumVerticalDragDistance)
+        {
+            return;
+        }
+
+        var item = TreeViewItemFromEventSource(e.OriginalSource as DependencyObject);
+        if (item?.Tag is not DatasetInfo dataset) return;
+
+        item.IsSelected = true;
+        var data = new DataObject();
+        data.SetData(LocalDatasetDragFormat, dataset.Name);
+        DragDrop.DoDragDrop(item, data, DragDropEffects.Copy);
+        _datasetDragStartPoint = null;
+    }
+
+    private void SqlEditor_PreviewDragOver(object sender, DragEventArgs e)
+    {
+        if (e.Data.GetDataPresent(LocalDatasetDragFormat))
+        {
+            e.Effects = DragDropEffects.Copy;
+            e.Handled = true;
+            return;
+        }
+
+        e.Effects = DragDropEffects.None;
+        e.Handled = true;
+    }
+
+    private void SqlEditor_PreviewDrop(object sender, DragEventArgs e)
+    {
+        if (!e.Data.GetDataPresent(LocalDatasetDragFormat)) return;
+        if (e.Data.GetData(LocalDatasetDragFormat) is not string datasetName || string.IsNullOrWhiteSpace(datasetName)) return;
+
+        MoveSqlCaretToDropPoint(e.GetPosition(SqlEditor));
+        InsertSqlAtCaret(BuildLocalDatasetSelectSql(datasetName));
+        SqlEditor.Focus();
+        SetStatus($"Inserted SELECT for {datasetName}");
+        e.Handled = true;
     }
 
     private void ShowSqlCompletion(bool force)
@@ -381,6 +440,10 @@ public partial class MainWindow : Window
                 : UsageCombo.SelectedItem?.ToString() ?? "Memory";
             var result = await Task.Run(() => _engine.ExecuteAsync(sql, previewRows, mode, CancellationToken.None));
             _currentResults = result.Table;
+            if (_activeQueryDocument is { } document)
+            {
+                document.Results = result.Table;
+            }
             ResultsGrid.ItemsSource = result.Table.DefaultView;
             if (mode.Equals("Memory", StringComparison.OrdinalIgnoreCase))
             {
@@ -397,25 +460,70 @@ public partial class MainWindow : Window
         }
     }
 
-    private bool IsSqlDirty => !string.Equals(SqlEditor.Text, _lastSavedSqlText, StringComparison.Ordinal);
+    private bool IsSqlDirty => _activeQueryDocument?.IsDirty ?? false;
 
-    private void SetEditorDocument(string? path, string sql, bool markSaved)
+    private void CreateQueryDocument(string title, string? path, string sql, bool markSaved, bool activate)
     {
+        if (path is null && title.StartsWith("Untitled ", StringComparison.OrdinalIgnoreCase))
+        {
+            var suffix = title["Untitled ".Length..];
+            if (int.TryParse(suffix, out var number))
+            {
+                _untitledQueryCounter = Math.Max(_untitledQueryCounter, number);
+            }
+        }
+
+        var document = new QueryDocument
+        {
+            Title = title,
+            FilePath = path,
+            Text = sql,
+            LastSavedText = markSaved ? sql : "",
+            TabItem = new TabItem()
+        };
+        document.TabItem.Tag = document;
+        document.TabItem.Header = BuildQueryTabHeader(document);
+        _queryDocuments.Add(document);
+        QueryTabs.Items.Add(document.TabItem);
+
+        if (activate)
+        {
+            QueryTabs.SelectedItem = document.TabItem;
+            ActivateQueryDocument(document);
+        }
+    }
+
+    private void ActivateQueryDocument(QueryDocument document)
+    {
+        CaptureActiveQueryDocument();
+        _activeQueryDocument = document;
         _suppressSqlDirtyTracking = true;
         try
         {
-            _currentSqlPath = path;
-            SqlEditor.Text = sql;
-            if (markSaved)
-            {
-                _lastSavedSqlText = sql;
-            }
+            SqlEditor.Text = document.Text;
         }
         finally
         {
             _suppressSqlDirtyTracking = false;
-            UpdateEditorFileStatus();
         }
+
+        _currentResults = document.Results;
+        ResultsGrid.ItemsSource = document.Results?.DefaultView;
+        UpdateEditorFileStatus();
+    }
+
+    private void CaptureActiveQueryDocument()
+    {
+        if (_activeQueryDocument is null || _suppressSqlDirtyTracking) return;
+        _activeQueryDocument.Text = SqlEditor.Text;
+        _activeQueryDocument.Results = _currentResults;
+        UpdateQueryTabHeader(_activeQueryDocument);
+    }
+
+    private void SetEditorDocument(string? path, string sql, bool markSaved)
+    {
+        var title = path == null ? NextUntitledQueryTitle() : Path.GetFileName(path);
+        CreateQueryDocument(title, path, sql, markSaved, true);
     }
 
     private void SetUnsavedEditorDocument(string sql)
@@ -425,17 +533,22 @@ public partial class MainWindow : Window
 
     private void UpdateEditorFileStatus()
     {
-        var label = _currentSqlPath == null ? "Unsaved query" : Path.GetFileName(_currentSqlPath);
-        EditorFileText.Text = $"Editing: {label}{(IsSqlDirty ? " *" : "")}";
-        EditorFileText.ToolTip = _currentSqlPath == null
-            ? "This query is not saved to a SQL file yet."
-            : _currentSqlPath;
+        if (_activeQueryDocument is null)
+        {
+            EditorFileText.Text = "Editing: No query";
+            EditorFileText.ToolTip = null;
+            return;
+        }
+
+        EditorFileText.Text = $"Editing: {_activeQueryDocument.Title}{(_activeQueryDocument.IsDirty ? " *" : "")}";
+        EditorFileText.ToolTip = _activeQueryDocument.FilePath ?? "This query is not saved to a SQL file yet.";
     }
 
-    private bool ConfirmSaveSqlIfDirty()
+    private bool ConfirmSaveSqlIfDirty(QueryDocument? document = null)
     {
-        if (!IsSqlDirty) return true;
-        var label = _currentSqlPath == null ? "the current query" : Path.GetFileName(_currentSqlPath);
+        document ??= _activeQueryDocument;
+        if (document is null || !document.IsDirty) return true;
+        var label = document.FilePath == null ? document.Title : Path.GetFileName(document.FilePath);
         var result = MessageBox.Show(
             this,
             $"Save changes to {label}?",
@@ -445,20 +558,34 @@ public partial class MainWindow : Window
 
         return result switch
         {
-            MessageBoxResult.Yes => SaveCurrentSql(),
+            MessageBoxResult.Yes => SaveCurrentSql(document),
             MessageBoxResult.No => true,
             _ => false
         };
     }
 
-    private bool SaveCurrentSql()
+    private bool ConfirmSaveAllQueryTabs()
     {
-        if (string.IsNullOrWhiteSpace(_currentSqlPath))
+        CaptureActiveQueryDocument();
+        foreach (var document in _queryDocuments.ToList())
         {
-            return SaveSqlAsNew();
+            if (!ConfirmSaveSqlIfDirty(document)) return false;
+        }
+        return true;
+    }
+
+    private bool SaveCurrentSql(QueryDocument? document = null)
+    {
+        document ??= _activeQueryDocument;
+        if (document is null) return false;
+        if (document == _activeQueryDocument) CaptureActiveQueryDocument();
+
+        if (string.IsNullOrWhiteSpace(document.FilePath))
+        {
+            return SaveSqlAsNew(document);
         }
 
-        if (!File.Exists(_currentSqlPath))
+        if (!File.Exists(document.FilePath))
         {
             var result = MessageBox.Show(
                 this,
@@ -466,24 +593,31 @@ public partial class MainWindow : Window
                 "Save SQL",
                 MessageBoxButton.YesNo,
                 MessageBoxImage.Warning);
-            return result == MessageBoxResult.Yes && SaveSqlAsNew();
+            return result == MessageBoxResult.Yes && SaveSqlAsNew(document);
         }
 
-        Workspace.WriteTextAtomically(_currentSqlPath, SqlEditor.Text);
-        _lastSavedSqlText = SqlEditor.Text;
+        Workspace.WriteTextAtomically(document.FilePath, document.Text);
+        document.LastSavedText = document.Text;
+        UpdateQueryTabHeader(document);
         UpdateEditorFileStatus();
         RefreshExplorer();
-        SetStatus($"Saved SQL {Path.GetFileName(_currentSqlPath)}");
+        SetStatus($"Saved SQL {Path.GetFileName(document.FilePath)}");
         return true;
     }
 
-    private bool SaveSqlAsNew()
+    private bool SaveSqlAsNew(QueryDocument? document = null)
     {
-        var name = Prompt("Save SQL", "Script name:", _currentSqlPath == null ? "query.sql" : Path.GetFileName(_currentSqlPath));
+        document ??= _activeQueryDocument;
+        if (document is null) return false;
+        if (document == _activeQueryDocument) CaptureActiveQueryDocument();
+
+        var name = Prompt("Save SQL", "Script name:", document.FilePath == null ? "query.sql" : Path.GetFileName(document.FilePath));
         if (string.IsNullOrWhiteSpace(name)) return false;
-        var path = _workspace.SaveScript(name, SqlEditor.Text);
-        _currentSqlPath = path;
-        _lastSavedSqlText = SqlEditor.Text;
+        var path = _workspace.SaveScript(name, document.Text);
+        document.FilePath = path;
+        document.Title = Path.GetFileName(path);
+        document.LastSavedText = document.Text;
+        UpdateQueryTabHeader(document);
         UpdateEditorFileStatus();
         RefreshExplorer();
         SetStatus($"Saved SQL {Path.GetFileName(path)}");
@@ -492,11 +626,8 @@ public partial class MainWindow : Window
 
     private void NewQuery_Click(object sender, RoutedEventArgs e)
     {
-        if (!ConfirmSaveSqlIfDirty()) return;
-        SetUnsavedEditorDocument("select * from dataset_name limit 100;");
-        ResultsGrid.ItemsSource = null;
-        _currentResults = null;
-        SetStatus("New unsaved query");
+        CreateQueryDocument(NextUntitledQueryTitle(), null, "select * from dataset_name limit 100;", true, true);
+        SetStatus("New query tab");
     }
 
     private void SaveSql_Click(object sender, RoutedEventArgs e)
@@ -507,6 +638,95 @@ public partial class MainWindow : Window
     private void SaveSqlAs_Click(object sender, RoutedEventArgs e)
     {
         SaveSqlAsNew();
+    }
+
+    private string NextUntitledQueryTitle()
+    {
+        _untitledQueryCounter++;
+        return $"Untitled {_untitledQueryCounter}";
+    }
+
+    private StackPanel BuildQueryTabHeader(QueryDocument document)
+    {
+        var panel = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        var title = new TextBlock
+        {
+            Text = QueryTabTitle(document),
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, 8, 0),
+            MinWidth = 70,
+            MaxWidth = 180,
+            TextTrimming = TextTrimming.CharacterEllipsis
+        };
+        panel.Children.Add(title);
+        var close = new Button
+        {
+            Content = "×",
+            ToolTip = "Close query",
+            Tag = document,
+            MinWidth = 20,
+            MinHeight = 20,
+            Padding = new Thickness(3, 0, 3, 1)
+        };
+        close.Click += CloseQueryTab_Click;
+        panel.Children.Add(close);
+        return panel;
+    }
+
+    private static string QueryTabTitle(QueryDocument document) => document.Title + (document.IsDirty ? " *" : "");
+
+    private void UpdateQueryTabHeader(QueryDocument document)
+    {
+        if (document.TabItem is null) return;
+        document.TabItem.Header = BuildQueryTabHeader(document);
+    }
+
+    private void QueryTabs_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (e.Source != QueryTabs) return;
+        if (QueryTabs.SelectedItem is TabItem { Tag: QueryDocument document })
+        {
+            ActivateQueryDocument(document);
+        }
+    }
+
+    private void CloseQueryTab_Click(object sender, RoutedEventArgs e)
+    {
+        e.Handled = true;
+        if (sender is not Button { Tag: QueryDocument document }) return;
+        CloseQueryDocument(document);
+    }
+
+    private bool CloseQueryDocument(QueryDocument document)
+    {
+        CaptureActiveQueryDocument();
+        if (_queryDocuments.Count <= 1)
+        {
+            SetStatus("At least one query tab must remain open.");
+            return true;
+        }
+
+        if (!ConfirmSaveSqlIfDirty(document)) return false;
+
+        var index = _queryDocuments.IndexOf(document);
+        _queryDocuments.Remove(document);
+        if (document.TabItem is not null)
+        {
+            QueryTabs.Items.Remove(document.TabItem);
+        }
+
+        if (document == _activeQueryDocument)
+        {
+            var nextIndex = Math.Clamp(index, 0, _queryDocuments.Count - 1);
+            QueryTabs.SelectedItem = _queryDocuments[nextIndex].TabItem;
+            ActivateQueryDocument(_queryDocuments[nextIndex]);
+        }
+
+        return true;
     }
 
     private async void ExportResult_Click(object sender, RoutedEventArgs e)
@@ -620,9 +840,7 @@ public partial class MainWindow : Window
     {
         if (SelectedTreeValue(ScriptsTree) is string path && File.Exists(path))
         {
-            if (!ConfirmSaveSqlIfDirty()) return;
-            SetEditorDocument(path, File.ReadAllText(path), true);
-            SetStatus($"Opened {Path.GetFileName(path)}");
+            OpenSqlScriptInTab(path);
         }
     }
 
@@ -630,10 +848,33 @@ public partial class MainWindow : Window
     {
         if (SelectedTreeValue(TemplatesTree) is string path && File.Exists(path))
         {
-            if (!ConfirmSaveSqlIfDirty()) return;
             SetUnsavedEditorDocument(File.ReadAllText(path));
             SetStatus($"Loaded template {Path.GetFileName(path)}");
         }
+    }
+
+    private void OpenSqlScriptInTab(string path)
+    {
+        var fullPath = Path.GetFullPath(path);
+        var existing = QueryDocumentForPath(fullPath);
+        if (existing is not null)
+        {
+            QueryTabs.SelectedItem = existing.TabItem;
+            ActivateQueryDocument(existing);
+            SetStatus($"Activated {Path.GetFileName(path)}");
+            return;
+        }
+
+        CreateQueryDocument(Path.GetFileName(path), path, File.ReadAllText(path), true, true);
+        SetStatus($"Opened {Path.GetFileName(path)}");
+    }
+
+    private QueryDocument? QueryDocumentForPath(string path)
+    {
+        var fullPath = Path.GetFullPath(path);
+        return _queryDocuments.FirstOrDefault(document =>
+            document.FilePath is not null &&
+            Path.GetFullPath(document.FilePath).Equals(fullPath, StringComparison.OrdinalIgnoreCase));
     }
 
     private async void MemoryTree_DoubleClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
@@ -666,7 +907,6 @@ public partial class MainWindow : Window
     private void MemoryGenerateSelect_Click(object sender, RoutedEventArgs e)
     {
         if (SelectedMemoryObject() is not { } obj) return;
-        if (!ConfirmSaveSqlIfDirty()) return;
         SetUnsavedEditorDocument(MemoryObjectSqlSnippet(obj));
         UsageCombo.SelectedIndex = 0;
         SetStatus(CanQueryMemoryObject(obj) ? $"Generated SELECT for {obj.Name}" : $"Generated SQL snippet for {obj.Name}");
@@ -740,14 +980,17 @@ public partial class MainWindow : Window
     private void RenameScript_Click(object sender, RoutedEventArgs e)
     {
         if (SelectedTreeValue(ScriptsTree) is not string path || !File.Exists(path)) return;
-        if (Path.GetFullPath(path).Equals(Path.GetFullPath(_currentSqlPath ?? ""), StringComparison.OrdinalIgnoreCase) && !ConfirmSaveSqlIfDirty()) return;
+        var openDocument = QueryDocumentForPath(path);
+        if (openDocument is not null && !ConfirmSaveSqlIfDirty(openDocument)) return;
         var name = Prompt("Rename SQL", "Script name:", Path.GetFileName(path));
         if (string.IsNullOrWhiteSpace(name)) return;
         var newPath = Path.Combine(_workspace.ScriptsFolder, Workspace.SafeName(Path.GetFileNameWithoutExtension(name)) + ".sql");
         File.Move(path, newPath, true);
-        if (Path.GetFullPath(path).Equals(Path.GetFullPath(_currentSqlPath ?? ""), StringComparison.OrdinalIgnoreCase))
+        if (openDocument is not null)
         {
-            _currentSqlPath = newPath;
+            openDocument.FilePath = newPath;
+            openDocument.Title = Path.GetFileName(newPath);
+            UpdateQueryTabHeader(openDocument);
             UpdateEditorFileStatus();
         }
         RefreshExplorer();
@@ -758,10 +1001,13 @@ public partial class MainWindow : Window
         if (SelectedTreeValue(ScriptsTree) is not string path || !File.Exists(path)) return;
         if (MessageBox.Show(this, $"Delete script \"{Path.GetFileName(path)}\"?", "Delete SQL", MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
         File.Delete(path);
-        if (Path.GetFullPath(path).Equals(Path.GetFullPath(_currentSqlPath ?? ""), StringComparison.OrdinalIgnoreCase))
+        var openDocument = QueryDocumentForPath(path);
+        if (openDocument is not null)
         {
-            _currentSqlPath = null;
-            _lastSavedSqlText = SqlEditor.Text;
+            openDocument.FilePath = null;
+            openDocument.Title = NextUntitledQueryTitle();
+            openDocument.LastSavedText = openDocument.Text;
+            UpdateQueryTabHeader(openDocument);
             UpdateEditorFileStatus();
         }
         RefreshExplorer();
@@ -1065,19 +1311,60 @@ public partial class MainWindow : Window
 
     private static object? SelectedTreeValue(TreeView tree) => (tree.SelectedItem as TreeViewItem)?.Tag;
 
+    private static TreeViewItem? TreeViewItemFromEventSource(DependencyObject? source)
+    {
+        for (var current = source; current != null; current = VisualTreeHelper.GetParent(current))
+        {
+            if (current is TreeViewItem item) return item;
+        }
+
+        return null;
+    }
+
+    private void MoveSqlCaretToDropPoint(Point dropPoint)
+    {
+        var position = SqlEditor.GetPositionFromPoint(dropPoint);
+        if (position.HasValue)
+        {
+            SqlEditor.TextArea.Caret.Position = position.Value;
+        }
+    }
+
+    private void InsertSqlAtCaret(string sql)
+    {
+        var offset = SqlEditor.CaretOffset;
+        var text = SqlEditor.Text;
+        var prefix = offset > 0 && !char.IsWhiteSpace(text[offset - 1]) ? Environment.NewLine + Environment.NewLine : "";
+        var suffix = offset < text.Length && !char.IsWhiteSpace(text[offset]) ? Environment.NewLine + Environment.NewLine : "";
+        var insertion = prefix + sql + suffix;
+        SqlEditor.Document.Insert(offset, insertion);
+        SqlEditor.CaretOffset = offset + insertion.Length;
+    }
+
+    private string BuildLocalDatasetSelectSql(string datasetName)
+    {
+        var tableName = QuoteSqlIdentifier(Workspace.SafeName(datasetName));
+        return $"SELECT *{Environment.NewLine}FROM {tableName}{Environment.NewLine}LIMIT {GetPreviewRows()};";
+    }
+
+    private int GetPreviewRows()
+    {
+        return int.TryParse(PreviewRowsText.Text, out var value) && value > 0 ? value : 1000;
+    }
+
+    private static string QuoteSqlIdentifier(string identifier)
+    {
+        return "\"" + identifier.Replace("\"", "\"\"") + "\"";
+    }
+
     private static void SelectTreeItemFromEvent(RoutedEventArgs e)
     {
         if (e.OriginalSource is not DependencyObject source) return;
 
-        for (var current = source; current != null; current = VisualTreeHelper.GetParent(current))
-        {
-            if (current is TreeViewItem item)
-            {
-                item.IsSelected = true;
-                item.Focus();
-                return;
-            }
-        }
+        var item = TreeViewItemFromEventSource(source);
+        if (item is null) return;
+        item.IsSelected = true;
+        item.Focus();
     }
 
     private StackPanel ScriptTreeHeader(string path)
@@ -1816,6 +2103,17 @@ public partial class MainWindow : Window
                     element.TextRunProperties.Typeface.Stretch));
             });
         }
+    }
+
+    private sealed class QueryDocument
+    {
+        public string Title { get; set; } = "Untitled";
+        public string? FilePath { get; set; }
+        public string Text { get; set; } = "";
+        public string LastSavedText { get; set; } = "";
+        public DataTable? Results { get; set; }
+        public TabItem? TabItem { get; set; }
+        public bool IsDirty => !string.Equals(Text, LastSavedText, StringComparison.Ordinal);
     }
 
     private static string? Prompt(string title, string label, string defaultValue)

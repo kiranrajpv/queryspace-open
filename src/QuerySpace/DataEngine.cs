@@ -1195,9 +1195,64 @@ public sealed class DataEngine
     {
         var current = new StringBuilder();
         var inSingle = false;
-        foreach (var ch in sql)
+        var inLineComment = false;
+        var inBlockComment = false;
+        for (var i = 0; i < sql.Length; i++)
         {
-            if (ch == '\'') inSingle = !inSingle;
+            var ch = sql[i];
+            var next = i + 1 < sql.Length ? sql[i + 1] : '\0';
+
+            if (inLineComment)
+            {
+                if (ch is '\r' or '\n')
+                {
+                    inLineComment = false;
+                    current.Append(ch);
+                }
+                continue;
+            }
+
+            if (inBlockComment)
+            {
+                if (ch == '*' && next == '/')
+                {
+                    inBlockComment = false;
+                    i++;
+                    current.Append(' ');
+                }
+                continue;
+            }
+
+            if (!inSingle && ch == '-' && next == '-')
+            {
+                inLineComment = true;
+                i++;
+                current.Append(' ');
+                continue;
+            }
+
+            if (!inSingle && ch == '/' && next == '*')
+            {
+                inBlockComment = true;
+                i++;
+                current.Append(' ');
+                continue;
+            }
+
+            if (ch == '\'')
+            {
+                current.Append(ch);
+                if (inSingle && next == '\'')
+                {
+                    current.Append(next);
+                    i++;
+                    continue;
+                }
+
+                inSingle = !inSingle;
+                continue;
+            }
+
             if (ch == ';' && !inSingle)
             {
                 var statement = current.ToString().Trim();

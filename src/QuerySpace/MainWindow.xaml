@@ -65,7 +65,10 @@
             </Grid.ColumnDefinitions>
             <TabControl x:Name="ExplorerTabs" Grid.Column="0">
                 <TabItem Header="Local Datasets">
-                    <TreeView x:Name="DatasetsTree" MouseDoubleClick="DatasetsTree_DoubleClick">
+                    <TreeView x:Name="DatasetsTree"
+                              PreviewMouseLeftButtonDown="DatasetsTree_PreviewMouseLeftButtonDown"
+                              PreviewMouseMove="DatasetsTree_PreviewMouseMove"
+                              MouseDoubleClick="DatasetsTree_DoubleClick">
                         <TreeView.ContextMenu>
                             <ContextMenu>
                                 <MenuItem Header="Information" Click="DatasetInfo_Click"/>
@@ -129,6 +132,7 @@
             <Grid Grid.Column="2">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
                     <RowDefinition Height="2*" MinHeight="180"/>
                     <RowDefinition Height="5"/>
                     <RowDefinition Height="3*" MinHeight="220"/>
@@ -156,17 +160,24 @@
                                    MaxWidth="340"/>
                     </DockPanel>
                 </Border>
-                <Border Grid.Row="1" BorderBrush="{DynamicResource {x:Static SystemColors.ControlDarkBrushKey}}" BorderThickness="1">
+                <TabControl x:Name="QueryTabs"
+                            Grid.Row="1"
+                            Margin="0,0,0,4"
+                            SelectionChanged="QueryTabs_SelectionChanged"/>
+                <Border Grid.Row="2" BorderBrush="{DynamicResource {x:Static SystemColors.ControlDarkBrushKey}}" BorderThickness="1">
                     <avalonedit:TextEditor x:Name="SqlEditor"
                                             FontFamily="Consolas"
                                             FontSize="15"
                                             ShowLineNumbers="True"
                                             VerticalScrollBarVisibility="Auto"
                                             HorizontalScrollBarVisibility="Auto"
+                                            AllowDrop="True"
+                                            PreviewDragOver="SqlEditor_PreviewDragOver"
+                                            PreviewDrop="SqlEditor_PreviewDrop"
                                             Text="select * from dataset_name limit 100;"/>
                 </Border>
-                <GridSplitter Grid.Row="2" Height="5" HorizontalAlignment="Stretch"/>
-                <DataGrid x:Name="ResultsGrid" Grid.Row="3"/>
+                <GridSplitter Grid.Row="3" Height="5" HorizontalAlignment="Stretch"/>
+                <DataGrid x:Name="ResultsGrid" Grid.Row="4"/>
             </Grid>
         </Grid>
     </DockPanel>
