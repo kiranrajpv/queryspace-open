@@ -81,6 +81,17 @@ public partial class MainWindow : Window
         UpdateEditorFileStatus();
     }
 
+    private void ExplorerSearchText_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        RefreshExplorer();
+    }
+
+    private void ClearExplorerSearch_Click(object sender, RoutedEventArgs e)
+    {
+        ExplorerSearchText.Clear();
+        ExplorerSearchText.Focus();
+    }
+
     private void SqlEditor_TextEntered(object sender, TextCompositionEventArgs e)
     {
         if (string.IsNullOrEmpty(e.Text)) return;
@@ -1093,7 +1104,12 @@ public partial class MainWindow : Window
             _memoryCompletionObjects.Clear();
             _memoryCompletionObjects.AddRange(objects);
             MemoryTree.Items.Clear();
+            var filter = ExplorerFilter;
+            var filteredObjects = objects
+                .Where(o => MatchesExplorerFilter(filter, o.Name, o.Schema, o.ObjectType, o.DisplayName, o.QualifiedName))
+                .ToList();
             var groups = objects
+                .Where(o => filteredObjects.Contains(o))
                 .GroupBy(o => MemoryGroupName(o.ObjectType))
                 .OrderBy(g => MemoryGroupSortOrder(g.Key));
 
@@ -1115,7 +1131,8 @@ public partial class MainWindow : Window
             {
                 MemoryTree.Items.Add(new TreeViewItem
                 {
-                    Header = TreeHeader(MemoryObjectIcon("Empty"), "No user-created memory objects yet"),
+                    Header = TreeHeader(MemoryObjectIcon("Empty"),
+                        string.IsNullOrWhiteSpace(filter) ? "No user-created memory objects yet" : "No matching memory objects"),
                     IsEnabled = false
                 });
             }
@@ -1259,16 +1276,20 @@ public partial class MainWindow : Window
     private void RefreshExplorer()
     {
         WorkspaceText.Text = $"Workspace: {_workspace.Root}";
+        var filter = ExplorerFilter;
+        ClearExplorerSearchButton.Visibility = string.IsNullOrWhiteSpace(filter) ? Visibility.Collapsed : Visibility.Visible;
         DatasetsTree.Items.Clear();
         var datasets = _workspace.SnapshotDatasets();
         var connections = _workspace.SnapshotConnections();
         var extractQueries = _workspace.SnapshotExtractQueries();
-        foreach (var dataset in datasets.OrderBy(d => d.Name))
+        foreach (var dataset in datasets.Where(d => MatchesExplorerFilter(filter, d.Name)).OrderBy(d => d.Name))
         {
             DatasetsTree.Items.Add(new TreeViewItem { Header = TreeHeader(StorageIcon(), $"{dataset.Name} ({dataset.RowCount:N0} rows)"), Tag = dataset });
         }
+        AddEmptyExplorerItem(DatasetsTree, string.IsNullOrWhiteSpace(filter) ? "No local datasets" : "No matching datasets");
+
         ScriptsTree.Items.Clear();
-        foreach (var path in _workspace.ListScripts())
+        foreach (var path in _workspace.ListScripts().Where(path => MatchesExplorerFilter(filter, Path.GetFileName(path), Path.GetFileNameWithoutExtension(path))))
         {
             var item = new TreeViewItem { Header = ScriptTreeHeader(path), Tag = path };
             item.Selected += (_, _) =>
@@ -1285,21 +1306,41 @@ public partial class MainWindow : Window
             };
             ScriptsTree.Items.Add(item);
         }
+        AddEmptyExplorerItem(ScriptsTree, string.IsNullOrWhiteSpace(filter) ? "No SQL scripts" : "No matching SQL scripts");
+
         TemplatesTree.Items.Clear();
-        foreach (var path in ListTemplateScripts())
+        foreach (var path in ListTemplateScripts().Where(path => MatchesExplorerFilter(filter, Path.GetFileName(path), Path.GetFileNameWithoutExtension(path))))
         {
             TemplatesTree.Items.Add(new TreeViewItem { Header = TreeHeader(RulesTemplateIcon(), Path.GetFileNameWithoutExtension(path)), Tag = path });
         }
+        AddEmptyExplorerItem(TemplatesTree, string.IsNullOrWhiteSpace(filter) ? "No templates" : "No matching templates");
+
         ConnectionsTree.Items.Clear();
         foreach (var connection in connections.OrderBy(c => c.Name))
         {
+            var matchingQueries = extractQueries
+                .Where(q => q.ConnectionId == connection.Id)
+                .Where(q => MatchesExplorerFilter(filter, q.Name, $"{q.Name}.sql", q.Status))
+                .OrderBy(q => q.Name)
+                .ToList();
+            var connectionMatches = MatchesExplorerFilter(filter, connection.Name, connection.Kind);
+            if (!string.IsNullOrWhiteSpace(filter) && !connectionMatches && matchingQueries.Count == 0)
+            {
+                continue;
+            }
+
             var item = new TreeViewItem { Header = TreeHeader("\uE839", $"{connection.Name} [{connection.Kind}]"), Tag = connection, IsExpanded = true };
-            foreach (var query in extractQueries.Where(q => q.ConnectionId == connection.Id).OrderBy(q => q.Name))
+            var childQueries = string.IsNullOrWhiteSpace(filter) || !connectionMatches
+                ? matchingQueries
+                : extractQueries.Where(q => q.ConnectionId == connection.Id).OrderBy(q => q.Name).ToList();
+            foreach (var query in childQueries)
             {
                 item.Items.Add(new TreeViewItem { Header = TreeHeader(SqlFileIcon(), $"{query.Name}.sql ({query.RowCount:N0} rows)"), Tag = query });
             }
             ConnectionsTree.Items.Add(item);
         }
+        AddEmptyExplorerItem(ConnectionsTree, string.IsNullOrWhiteSpace(filter) ? "No connections" : "No matching connections or extract queries");
+
         _ = RefreshInMemoryExplorerAsync();
     }
 
@@ -1307,6 +1348,24 @@ public partial class MainWindow : Window
     {
         StatusText.Text = busy ? message + "..." : message;
         StopExtractButton.IsEnabled = true;
+    }
+
+    private string ExplorerFilter => ExplorerSearchText?.Text.Trim() ?? "";
+
+    private static bool MatchesExplorerFilter(string filter, params string?[] values)
+    {
+        if (string.IsNullOrWhiteSpace(filter)) return true;
+        return values.Any(value => !string.IsNullOrWhiteSpace(value) && value.Contains(filter, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static void AddEmptyExplorerItem(TreeView tree, string message)
+    {
+        if (tree.Items.Count > 0) return;
+        tree.Items.Add(new TreeViewItem
+        {
+            Header = TreeHeader("", message),
+            IsEnabled = false
+        });
     }
 
     private static object? SelectedTreeValue(TreeView tree) => (tree.SelectedItem as TreeViewItem)?.Tag;

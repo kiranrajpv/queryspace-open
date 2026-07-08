@@ -63,12 +63,53 @@
                 <ColumnDefinition Width="5"/>
                 <ColumnDefinition Width="*" MinWidth="480"/>
             </Grid.ColumnDefinitions>
-            <TabControl x:Name="ExplorerTabs" Grid.Column="0">
-                <TabItem Header="Local Datasets">
-                    <TreeView x:Name="DatasetsTree"
-                              PreviewMouseLeftButtonDown="DatasetsTree_PreviewMouseLeftButtonDown"
-                              PreviewMouseMove="DatasetsTree_PreviewMouseMove"
-                              MouseDoubleClick="DatasetsTree_DoubleClick">
+            <DockPanel Grid.Column="0">
+                <Border DockPanel.Dock="Top"
+                        Margin="4,4,4,6"
+                        MinHeight="30"
+                        BorderThickness="1"
+                        BorderBrush="{DynamicResource {x:Static SystemColors.ControlDarkBrushKey}}"
+                        Background="{DynamicResource {x:Static SystemColors.WindowBrushKey}}">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0"
+                               Text="&#xE721;"
+                               FontFamily="Segoe MDL2 Assets"
+                               FontSize="15"
+                               VerticalAlignment="Center"
+                               Margin="8,0,6,0"
+                               Foreground="{DynamicResource {x:Static SystemColors.GrayTextBrushKey}}"/>
+                    <Button x:Name="ClearExplorerSearchButton"
+                            Content="×"
+                            Grid.Column="2"
+                            MinWidth="28"
+                            MinHeight="28"
+                            Margin="4,0,2,0"
+                            BorderThickness="0"
+                            Background="Transparent"
+                            ToolTip="Clear search"
+                            Click="ClearExplorerSearch_Click"/>
+                    <TextBox x:Name="ExplorerSearchText"
+                             Grid.Column="1"
+                             MinHeight="28"
+                             BorderThickness="0"
+                             Background="Transparent"
+                             VerticalContentAlignment="Center"
+                             Padding="0,2"
+                             ToolTip="Search objects across all explorer tabs"
+                             TextChanged="ExplorerSearchText_TextChanged"/>
+                    </Grid>
+                </Border>
+                <TabControl x:Name="ExplorerTabs">
+                    <TabItem Header="Local Datasets">
+                        <TreeView x:Name="DatasetsTree"
+                                  PreviewMouseLeftButtonDown="DatasetsTree_PreviewMouseLeftButtonDown"
+                                  PreviewMouseMove="DatasetsTree_PreviewMouseMove"
+                                  MouseDoubleClick="DatasetsTree_DoubleClick">
                         <TreeView.ContextMenu>
                             <ContextMenu>
                                 <MenuItem Header="Information" Click="DatasetInfo_Click"/>
@@ -76,36 +117,36 @@
                                 <MenuItem Header="Delete" Click="DeleteDataset_Click"/>
                             </ContextMenu>
                         </TreeView.ContextMenu>
-                    </TreeView>
-                </TabItem>
-                <TabItem Header="SQL Scripts">
-                    <TreeView x:Name="ScriptsTree" MouseDoubleClick="ScriptsTree_DoubleClick">
+                        </TreeView>
+                    </TabItem>
+                    <TabItem Header="SQL Scripts">
+                        <TreeView x:Name="ScriptsTree" MouseDoubleClick="ScriptsTree_DoubleClick">
                         <TreeView.ContextMenu>
                             <ContextMenu>
                                 <MenuItem Header="Rename" Click="RenameScript_Click"/>
                                 <MenuItem Header="Delete" Click="DeleteScript_Click"/>
                             </ContextMenu>
                         </TreeView.ContextMenu>
-                    </TreeView>
-                </TabItem>
-                <TabItem Header="Templates">
-                    <TreeView x:Name="TemplatesTree" MouseDoubleClick="TemplatesTree_DoubleClick"/>
-                </TabItem>
-                <TabItem Header="Connections">
-                    <TreeView x:Name="ConnectionsTree"
-                              PreviewMouseLeftButtonDown="ConnectionsTree_PreviewMouseButtonDown"
-                              PreviewMouseRightButtonDown="ConnectionsTree_PreviewMouseButtonDown"
-                              MouseDoubleClick="ConnectionsTree_DoubleClick">
+                        </TreeView>
+                    </TabItem>
+                    <TabItem Header="Templates">
+                        <TreeView x:Name="TemplatesTree" MouseDoubleClick="TemplatesTree_DoubleClick"/>
+                    </TabItem>
+                    <TabItem Header="Connections">
+                        <TreeView x:Name="ConnectionsTree"
+                                  PreviewMouseLeftButtonDown="ConnectionsTree_PreviewMouseButtonDown"
+                                  PreviewMouseRightButtonDown="ConnectionsTree_PreviewMouseButtonDown"
+                                  MouseDoubleClick="ConnectionsTree_DoubleClick">
                         <TreeView.ContextMenu>
                             <ContextMenu>
                                 <MenuItem Header="Edit connection / Open extract query" Click="ConnectionOpen_Click"/>
                                 <MenuItem Header="Delete connection / query" Click="ConnectionDelete_Click"/>
                             </ContextMenu>
                         </TreeView.ContextMenu>
-                    </TreeView>
-                </TabItem>
-                <TabItem Header="In-Memory">
-                    <DockPanel>
+                        </TreeView>
+                    </TabItem>
+                    <TabItem Header="In-Memory">
+                        <DockPanel>
                         <TextBlock DockPanel.Dock="Top"
                                    Text="Session-only DuckDB objects. Export important tables before closing QuerySpace."
                                    TextWrapping="Wrap"
@@ -124,10 +165,11 @@
                                     <MenuItem Header="Refresh" Click="MemoryRefresh_Click"/>
                                 </ContextMenu>
                             </TreeView.ContextMenu>
-                        </TreeView>
-                    </DockPanel>
-                </TabItem>
-            </TabControl>
+                            </TreeView>
+                        </DockPanel>
+                    </TabItem>
+                </TabControl>
+            </DockPanel>
             <GridSplitter Grid.Column="1" Width="5" HorizontalAlignment="Stretch"/>
             <Grid Grid.Column="2">
                 <Grid.RowDefinitions>
