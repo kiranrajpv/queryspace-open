@@ -10,6 +10,7 @@ using System.IO;
 using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
@@ -24,6 +25,8 @@ public partial class MainWindow : Window
     private DataTable? _currentResults;
     private const string LocalDatasetDragFormat = "QuerySpace.LocalDataset";
     private const int MaxScriptExecutions = 3;
+    private const double MinScriptFileNameColumnWidth = 120;
+    private const double MinScriptStatusColumnWidth = 80;
     private readonly Dictionary<string, ScriptExecutionState> _scriptExecutionStates = new(StringComparer.OrdinalIgnoreCase);
     private readonly Queue<string> _scriptExecutionQueue = new();
     private readonly List<InMemoryObjectInfo> _memoryCompletionObjects = new();
@@ -34,6 +37,8 @@ public partial class MainWindow : Window
     private Point? _datasetDragStartPoint;
     private int _activeScriptExecutions;
     private int _untitledQueryCounter;
+    private double _scriptFileNameColumnWidth = 175;
+    private double _scriptStatusColumnWidth = 85;
 
     public MainWindow()
     {
@@ -1426,16 +1431,21 @@ public partial class MainWindow : Window
         item.Focus();
     }
 
-    private StackPanel ScriptTreeHeader(string path)
+    private Grid ScriptTreeHeader(string path)
     {
         var state = GetScriptState(path);
-        var header = new StackPanel
+        var header = new Grid
         {
-            Orientation = Orientation.Horizontal,
             VerticalAlignment = VerticalAlignment.Center,
             Margin = new Thickness(0, 1, 0, 1),
             MinHeight = 24
         };
+        header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        header.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(_scriptFileNameColumnWidth), MinWidth = MinScriptFileNameColumnWidth });
+        header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        header.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(_scriptStatusColumnWidth), MinWidth = MinScriptStatusColumnWidth });
+        header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        header.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(70), MinWidth = 44 });
         var action = new Button
         {
             Content = state.Status is ScriptExecutionStatus.Running or ScriptExecutionStatus.Queued ? "■" : "▶",
@@ -1443,7 +1453,7 @@ public partial class MainWindow : Window
             MinWidth = 24,
             MinHeight = 22,
             Padding = new Thickness(4, 0, 4, 1),
-            Margin = new Thickness(0, 0, 6, 0),
+            Margin = new Thickness(0, 0, 4, 0),
             Foreground = state.Status is ScriptExecutionStatus.Running or ScriptExecutionStatus.Queued
                 ? new SolidColorBrush(Color.FromRgb(198, 40, 40))
                 : new SolidColorBrush(Color.FromRgb(35, 150, 95))
@@ -1453,32 +1463,63 @@ public partial class MainWindow : Window
             e.Handled = true;
             ToggleScriptExecution(path);
         };
+        Grid.SetColumn(action, 0);
         header.Children.Add(action);
-        header.Children.Add(SqlFileIcon());
+        var fileCell = new DockPanel
+        {
+            LastChildFill = true,
+            Margin = new Thickness(2, 0, 4, 0),
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        var fileIcon = SqlFileIcon();
+        DockPanel.SetDock(fileIcon, Dock.Left);
+        fileCell.Children.Add(fileIcon);
         var fileNameText = new TextBlock
         {
             Text = Path.GetFileName(path),
-            MinWidth = 135,
-            VerticalAlignment = VerticalAlignment.Center
+            VerticalAlignment = VerticalAlignment.Center,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+            ToolTip = path
         };
-        header.Children.Add(fileNameText);
+        fileCell.Children.Add(fileNameText);
+        Grid.SetColumn(fileCell, 1);
+        header.Children.Add(fileCell);
+        var splitter = new GridSplitter
+        {
+            Width = 3,
+            Margin = new Thickness(2, 0, 4, 0),
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            VerticalAlignment = VerticalAlignment.Stretch,
+            Background = SystemColors.ControlDarkBrush,
+            ResizeDirection = GridResizeDirection.Columns,
+            ResizeBehavior = GridResizeBehavior.PreviousAndNext,
+            ShowsPreview = true,
+            Cursor = Cursors.SizeWE,
+            ToolTip = "Drag to resize file name/status columns"
+        };
+        splitter.DragDelta += ScriptColumnSplitter_DragDelta;
+        Grid.SetColumn(splitter, 2);
+        header.Children.Add(splitter);
         var progress = new ProgressBar
         {
             Width = 62,
             Height = 8,
-            Margin = new Thickness(8, 0, 6, 0),
+            Margin = new Thickness(6, 0, 0, 0),
             Visibility = state.Status == ScriptExecutionStatus.Running ? Visibility.Visible : Visibility.Collapsed,
             IsIndeterminate = true,
             Foreground = new SolidColorBrush(Color.FromRgb(35, 150, 95))
         };
+        Grid.SetColumn(progress, 5);
         header.Children.Add(progress);
         var status = new TextBlock
         {
             Text = ScriptStatusText(state),
             Foreground = ScriptStatusBrush(state.Status),
             VerticalAlignment = VerticalAlignment.Center,
+            TextTrimming = TextTrimming.CharacterEllipsis,
             ToolTip = state.LastError
         };
+        Grid.SetColumn(status, 3);
         header.Children.Add(status);
         state.ActionButton = action;
         state.HeaderPanel = header;
@@ -1487,6 +1528,37 @@ public partial class MainWindow : Window
         state.StatusText = status;
         UpdateScriptStateUi(state);
         return header;
+    }
+
+    private void ScriptColumnSplitter_DragDelta(object sender, DragDeltaEventArgs e)
+    {
+        var delta = e.HorizontalChange;
+        if (_scriptFileNameColumnWidth + delta < MinScriptFileNameColumnWidth)
+        {
+            delta = MinScriptFileNameColumnWidth - _scriptFileNameColumnWidth;
+        }
+        if (_scriptStatusColumnWidth - delta < MinScriptStatusColumnWidth)
+        {
+            delta = _scriptStatusColumnWidth - MinScriptStatusColumnWidth;
+        }
+
+        if (Math.Abs(delta) < 0.1) return;
+
+        _scriptFileNameColumnWidth += delta;
+        _scriptStatusColumnWidth -= delta;
+        ApplyScriptColumnWidths();
+    }
+
+    private void ApplyScriptColumnWidths()
+    {
+        foreach (var state in _scriptExecutionStates.Values)
+        {
+            if (state.HeaderPanel is Grid grid && grid.ColumnDefinitions.Count > 3)
+            {
+                grid.ColumnDefinitions[1].Width = new GridLength(_scriptFileNameColumnWidth);
+                grid.ColumnDefinitions[3].Width = new GridLength(_scriptStatusColumnWidth);
+            }
+        }
     }
 
     private ScriptExecutionState GetScriptState(string path)
@@ -2055,7 +2127,7 @@ public partial class MainWindow : Window
         public bool IsSelected { get; set; }
         public CancellationTokenSource? Cancellation { get; set; }
         public Button? ActionButton { get; set; }
-        public StackPanel? HeaderPanel { get; set; }
+        public Panel? HeaderPanel { get; set; }
         public TextBlock? FileNameText { get; set; }
         public ProgressBar? Progress { get; set; }
         public TextBlock? StatusText { get; set; }

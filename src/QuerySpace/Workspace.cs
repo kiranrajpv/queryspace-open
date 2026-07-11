@@ -79,7 +79,12 @@ public sealed class Workspace
     {
         lock (_syncRoot)
         {
-            dataset.Name = EnsureDatasetNameAvailable(newName, dataset.Id);
+            var safe = EnsureDatasetNameAvailable(newName, dataset.Id);
+            var oldPath = dataset.Path;
+            var newPath = Path.Combine(DatasetsFolder, safe + ".parquet");
+            RenameWorkspaceDatasetFile(oldPath, newPath);
+            dataset.Name = safe;
+            dataset.Path = newPath;
             Save();
         }
     }
@@ -342,6 +347,46 @@ public sealed class Workspace
             throw new InvalidOperationException($"Refusing to delete a file outside the QuerySpace workspace: {fullPath}");
         }
         if (File.Exists(fullPath)) File.Delete(fullPath);
+    }
+
+    private void RenameWorkspaceDatasetFile(string oldPath, string newPath)
+    {
+        if (string.IsNullOrWhiteSpace(oldPath))
+        {
+            throw new InvalidOperationException("Dataset does not have a Parquet file path to rename.");
+        }
+
+        var fullOldPath = Path.GetFullPath(oldPath);
+        var fullNewPath = Path.GetFullPath(newPath);
+        var fullDatasetsFolder = Path.GetFullPath(DatasetsFolder);
+        if (!fullDatasetsFolder.EndsWith(Path.DirectorySeparatorChar))
+        {
+            fullDatasetsFolder += Path.DirectorySeparatorChar;
+        }
+
+        if (!fullOldPath.StartsWith(fullDatasetsFolder, StringComparison.OrdinalIgnoreCase) ||
+            !fullNewPath.StartsWith(fullDatasetsFolder, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("Refusing to rename a dataset file outside the QuerySpace workspace datasets folder.");
+        }
+
+        if (fullOldPath.Equals(fullNewPath, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        if (!File.Exists(fullOldPath))
+        {
+            throw new FileNotFoundException("The dataset Parquet file was not found and cannot be renamed.", fullOldPath);
+        }
+
+        if (File.Exists(fullNewPath))
+        {
+            throw new InvalidOperationException($"A Parquet file named \"{Path.GetFileName(fullNewPath)}\" already exists. Delete the existing dataset or choose a different dataset name.");
+        }
+
+        Directory.CreateDirectory(Path.GetDirectoryName(fullNewPath)!);
+        File.Move(fullOldPath, fullNewPath);
     }
 
     private static string? LoadConfiguredRoot()
