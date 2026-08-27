@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="src/QuerySpace/Assets/QuerySpace.ico" alt="QuerySpace icon" width="96" height="96">
+</p>
+
 # QuerySpace
 
 QuerySpace is a native Windows desktop application for working with local Parquet datasets and database extracts.
@@ -372,3 +376,47 @@ left join mdg_material_postload m
 - SAP HANA direct ADO.NET support is not bundled. Use SAP HANA through ODBC DSN unless SAP licensing/deployment is separately approved.
 - For very large extracts, QuerySpace writes database rows directly into Parquet row groups under a `.partial` file and renames it only after the extract succeeds. Cancelled or failed extracts delete the partial file.
 - SQL scripts saved directly by the user appear in **SQL Scripts**. Base extraction SQL appears under the source connection to avoid showing the same query in two places.
+
+## VS Code MCP integration
+
+`QuerySpace.McpServer` is a separate stdio server that lets MCP clients such as GitHub Copilot read the currently configured local QuerySpace workspace. It exposes `list_datasets`, `get_dataset_schema`, `sample_dataset`, `list_sql_scripts`, `get_sql_script`, and `run_readonly_sql`.
+
+The server is intentionally read-only. It never returns dataset paths or connection configuration, never reads `.secrets`, caps query and sample output at 500 rows, accepts only one `SELECT`/`WITH` query, and blocks mutating statements plus DuckDB file/network access functions.
+
+For development, add this to `.vscode/mcp.json` and adjust the repository path:
+
+```json
+{
+  "servers": {
+    "queryspace": {
+      "type": "stdio",
+      "command": "dotnet",
+      "args": [
+        "run",
+        "--project",
+        "C:\\path\\to\\queryspace-csharp\\src\\QuerySpace.McpServer\\QuerySpace.McpServer.csproj",
+        "--no-build"
+      ]
+    }
+  }
+}
+```
+
+For an installed or published server, point `command` directly at `QuerySpace.McpServer.exe` and omit `args`:
+
+```json
+{
+  "servers": {
+    "queryspace": {
+      "type": "stdio",
+      "command": "C:\\Program Files\\QuerySpace\\QuerySpace.McpServer.exe"
+    }
+  }
+}
+```
+
+Build the development server before using `--no-build`:
+
+```powershell
+dotnet build .\src\QuerySpace.McpServer\QuerySpace.McpServer.csproj
+```
