@@ -30,7 +30,7 @@
 </p>
 
 > [!NOTE]
-> QuerySpace is an independent open-source hobby project, developed entirely during personal free time for learning, experimentation, and technical training. It was not created for, based on a requirement from, or used by the author's employer. The project is not affiliated with or endorsed by the author's employer.
+> QuerySpace is an independent open-source hobby project, developed entirely during personal free time for learning, experimentation, and technical training.
 
 ## Why QuerySpace
 
