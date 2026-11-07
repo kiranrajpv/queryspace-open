@@ -1,36 +1,51 @@
 param(
-    [string]$ProjectPath = "$PSScriptRoot\..\src\QuerySpace\QuerySpace.csproj",
+    [string[]]$ProjectPaths = @(
+        "$PSScriptRoot\..\src\QuerySpace\QuerySpace.csproj",
+        "$PSScriptRoot\..\src\QuerySpace.McpServer\QuerySpace.McpServer.csproj"
+    ),
     [string]$OutputPath = "$PSScriptRoot\..\THIRD-PARTY-NOTICES.md"
 )
 
 $ErrorActionPreference = "Stop"
 
-$ProjectPath = [System.IO.Path]::GetFullPath($ProjectPath)
+$ProjectPaths = @($ProjectPaths | ForEach-Object { [System.IO.Path]::GetFullPath($_) })
 $OutputPath = [System.IO.Path]::GetFullPath($OutputPath)
 $nugetRoot = Join-Path $env:USERPROFILE ".nuget\packages"
 
-dotnet restore $ProjectPath | Out-Null
-
-$lines = dotnet list $ProjectPath package --include-transitive
 $packages = New-Object System.Collections.Generic.List[object]
-$section = ""
-foreach ($line in $lines) {
-    if ($line -match "Top-level Package") {
-        $section = "Direct"
-        continue
-    }
-    if ($line -match "Transitive Package") {
-        $section = "Transitive"
-        continue
-    }
-    if ($line -match "^\s*>\s+(\S+)\s+(?:(\S+)\s+)?([0-9][^\s]*)\s*$") {
-        $packages.Add([pscustomobject]@{
-            Name = $matches[1]
-            Version = $matches[3]
-            Relationship = $section
-        })
+foreach ($projectPath in $ProjectPaths) {
+    dotnet restore $projectPath | Out-Null
+    $lines = dotnet list $projectPath package --include-transitive
+    $section = ""
+    foreach ($line in $lines) {
+        if ($line -match "Top-level Package") {
+            $section = "Direct"
+            continue
+        }
+        if ($line -match "Transitive Package") {
+            $section = "Transitive"
+            continue
+        }
+        if ($line -match "^\s*>\s+(\S+)\s+(?:(\S+)\s+)?([0-9][^\s]*)\s*$") {
+            $packages.Add([pscustomobject]@{
+                Name = $matches[1]
+                Version = $matches[3]
+                Relationship = $section
+            })
+        }
     }
 }
+
+$packages = @($packages |
+    Group-Object Name, Version |
+    ForEach-Object {
+        $items = @($_.Group)
+        [pscustomobject]@{
+            Name = $items[0].Name
+            Version = $items[0].Version
+            Relationship = if ($items.Relationship -contains "Direct") { "Direct" } else { "Transitive" }
+        }
+    })
 
 function Get-NuspecMetadata {
     param([string]$Name, [string]$Version)
@@ -139,7 +154,7 @@ $enriched = foreach ($package in $packages) {
 $sb = [System.Text.StringBuilder]::new()
 $null = $sb.AppendLine("# Third-party notices")
 $null = $sb.AppendLine()
-$null = $sb.AppendLine("Generated from the local NuGet package cache for QuerySpace.csproj.")
+$null = $sb.AppendLine("Generated from the local NuGet package cache for the QuerySpace desktop and MCP server projects.")
 $null = $sb.AppendLine()
 $null = $sb.AppendLine("This file is an engineering aid for compliance review. It is not legal advice. Regenerate it after changing package versions.")
 $null = $sb.AppendLine()
@@ -177,6 +192,7 @@ foreach ($item in $enriched | Sort-Object Name) {
         $relative = Split-Path $file -Leaf
         $content = Get-Content -Raw -LiteralPath $file -ErrorAction SilentlyContinue
         if ($null -eq $content -or $content.Trim() -eq "") { continue }
+        $content = (($content -split "\r?\n") | ForEach-Object { $_.TrimEnd() }) -join [Environment]::NewLine
         $null = $sb.AppendLine()
         $null = $sb.AppendLine("#### $relative")
         $null = $sb.AppendLine()

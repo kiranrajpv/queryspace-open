@@ -1,0 +1,128 @@
+<Window x:Class="QuerySpace.AiSettingsDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="QuerySpace AI Settings" Height="660" Width="900" MinHeight="560" MinWidth="760"
+        WindowStartupLocation="CenterOwner">
+    <DockPanel Margin="14">
+        <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,14,0,0">
+            <Button Content="Save" Style="{StaticResource DialogActionButtonStyle}" Click="Save_Click" IsDefault="True"/>
+            <Button Content="Close" Style="{StaticResource DialogActionButtonStyle}" Click="Close_Click" IsCancel="True"/>
+        </StackPanel>
+
+        <TabControl>
+            <TabItem Header="Local Models">
+                <Grid Margin="12">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <TextBlock Grid.Row="0" Margin="0,0,0,10" TextWrapping="Wrap"
+                               Text="Models run entirely on this computer. QuerySpace downloads and manages them; Ollama, Python and the Foundry CLI are not required."/>
+                    <TextBlock x:Name="DetectedHardwareText" Grid.Row="1" Margin="0,0,0,10" TextWrapping="Wrap"
+                               Foreground="{DynamicResource {x:Static SystemColors.GrayTextBrushKey}}"/>
+                    <DataGrid x:Name="LocalModelsGrid" Grid.Row="2" AutoGenerateColumns="False" IsReadOnly="True"
+                              SelectionMode="Single" SelectionUnit="FullRow">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Model" Binding="{Binding DisplayName}" Width="2*"/>
+                            <DataGridTextColumn Header="Publisher" Binding="{Binding Publisher}" Width="*"/>
+                            <DataGridTextColumn Header="Size" Binding="{Binding Size}" Width="95"/>
+                            <DataGridTextColumn Header="Runtime" Binding="{Binding RuntimeLabel}" Width="170"/>
+                            <DataGridCheckBoxColumn Header="Agent tools" Binding="{Binding SupportsTools}" Width="90"/>
+                            <DataGridTextColumn Header="License" Binding="{Binding License}" Width="120"/>
+                            <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="90"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                    <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="0,10,0,0">
+                        <Button Content="Refresh catalog" Style="{StaticResource DialogActionButtonStyle}" Margin="0" Click="RefreshModels_Click"/>
+                        <Button x:Name="EnableGpuButton" Content="Enable GPU acceleration" Style="{StaticResource DialogActionButtonStyle}" Click="EnableGpu_Click"/>
+                        <Button Content="Re-detect GPUs" Style="{StaticResource DialogActionButtonStyle}" Click="RedetectHardware_Click"/>
+                        <Button x:Name="DownloadModelButton" Content="Download" Style="{StaticResource DialogActionButtonStyle}" Click="DownloadModel_Click"/>
+                        <Button x:Name="RemoveModelButton" Content="Remove" Style="{StaticResource DialogActionButtonStyle}" Click="RemoveModel_Click"/>
+                    </StackPanel>
+                    <Grid Grid.Row="4" Margin="0,10,0,0">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="220"/></Grid.ColumnDefinitions>
+                        <TextBlock x:Name="LocalModelStatus" Grid.Column="0" VerticalAlignment="Center" Text="Select Refresh catalog to view models." TextTrimming="CharacterEllipsis"/>
+                        <ProgressBar x:Name="LocalModelProgress" Grid.Column="1" Height="18" Minimum="0" Maximum="100" Visibility="Collapsed"/>
+                    </Grid>
+                </Grid>
+            </TabItem>
+
+            <TabItem Header="Cloud Models">
+                <Grid Margin="12">
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="250"/><ColumnDefinition Width="12"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                    <DockPanel Grid.Column="0">
+                        <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="0,8,0,0">
+                            <Button Content="Add" Style="{StaticResource DialogActionButtonStyle}" Margin="0" Click="AddProfile_Click"/>
+                            <Button Content="Delete" Style="{StaticResource DialogActionButtonStyle}" Click="DeleteProfile_Click"/>
+                        </StackPanel>
+                        <ListBox x:Name="ProfilesList" DisplayMemberPath="Name" SelectionChanged="ProfilesList_SelectionChanged"/>
+                    </DockPanel>
+                    <ScrollViewer Grid.Column="2" VerticalScrollBarVisibility="Auto">
+                        <Grid>
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="150"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+                            <TextBlock Grid.Row="0" Grid.ColumnSpan="2" Margin="0,0,0,10" TextWrapping="Wrap"
+                                       Text="Configure model inference APIs. The QuerySpace agent remains local; only prompts and approved tool results are sent to the selected cloud model."/>
+                            <TextBlock Grid.Row="1" Grid.Column="0" Text="Profile name" Style="{StaticResource FormLabelStyle}"/>
+                            <TextBox x:Name="ProfileNameText" Grid.Row="1" Grid.Column="1" Style="{StaticResource FormTextBoxStyle}"/>
+                            <TextBlock Grid.Row="2" Grid.Column="0" Text="Provider" Style="{StaticResource FormLabelStyle}"/>
+                            <ComboBox x:Name="ProviderCombo" Grid.Row="2" Grid.Column="1" Style="{StaticResource FormComboBoxStyle}">
+                                <ComboBoxItem>OpenAI</ComboBoxItem>
+                                <ComboBoxItem>Azure OpenAI</ComboBoxItem>
+                                <ComboBoxItem>OpenAI Compatible</ComboBoxItem>
+                            </ComboBox>
+                            <TextBlock Grid.Row="3" Grid.Column="0" Text="Endpoint" Style="{StaticResource FormLabelStyle}"/>
+                            <TextBox x:Name="EndpointText" Grid.Row="3" Grid.Column="1" Style="{StaticResource FormTextBoxStyle}"/>
+                            <TextBlock Grid.Row="4" Grid.Column="0" Text="Model / deployment" Style="{StaticResource FormLabelStyle}"/>
+                            <TextBox x:Name="ModelText" Grid.Row="4" Grid.Column="1" Style="{StaticResource FormTextBoxStyle}"/>
+                            <TextBlock Grid.Row="5" Grid.Column="0" Text="API version" Style="{StaticResource FormLabelStyle}"/>
+                            <TextBox x:Name="ApiVersionText" Grid.Row="5" Grid.Column="1" Style="{StaticResource FormTextBoxStyle}"/>
+                            <TextBlock Grid.Row="6" Grid.Column="0" Text="API key (optional for compatible)" TextWrapping="Wrap" Style="{StaticResource FormLabelStyle}"/>
+                            <PasswordBox x:Name="ApiKeyBox" Grid.Row="6" Grid.Column="1" Style="{StaticResource FormPasswordBoxStyle}"/>
+                            <StackPanel Grid.Row="7" Grid.Column="1">
+                                <CheckBox x:Name="ProfileEnabledCheck" Content="Enabled" Margin="0,4"/>
+                                <CheckBox x:Name="ProfileToolsCheck" Content="Model supports function/tool calling" Margin="0,4"/>
+                            </StackPanel>
+                            <StackPanel Grid.Row="8" Grid.Column="1" Orientation="Horizontal" Margin="0,12,0,0">
+                                <Button Content="Save profile" Style="{StaticResource DialogActionButtonStyle}" Margin="0" Click="SaveProfile_Click"/>
+                                <Button Content="Test connection" Style="{StaticResource DialogActionButtonStyle}" Click="TestProfile_Click"/>
+                            </StackPanel>
+                        </Grid>
+                    </ScrollViewer>
+                </Grid>
+            </TabItem>
+
+            <TabItem Header="MCP &amp; Agent Access">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="16" MaxWidth="680" HorizontalAlignment="Left">
+                        <TextBlock Text="QuerySpace MCP/AI tools" FontSize="16" FontWeight="SemiBold" Margin="0,0,0,8"/>
+                        <CheckBox x:Name="McpEnabledCheck" Content="Enable QuerySpace MCP and AI tools" Margin="0,5"/>
+                        <CheckBox x:Name="AllowDatasetReadCheck" Content="Allow access to datasets individually marked Available to MCP" Margin="20,5"/>
+                        <CheckBox x:Name="AllowEditorReadCheck" Content="Allow reading the active SQL editor" Margin="20,5"/>
+                        <CheckBox x:Name="AllowEditorWriteCheck" Content="Allow inserting or replacing SQL in the editor" Margin="20,5"/>
+                        <CheckBox x:Name="AllowExecutionCheck" Content="Allow bounded read-only SQL execution" Margin="20,5"/>
+                        <CheckBox x:Name="RequireApprovalCheck" Content="Ask for approval before every AI SQL execution" Margin="40,5"/>
+                        <CheckBox x:Name="AuditCheck" Content="Write an audit record for AI tool calls" Margin="20,5"/>
+                        <Grid Margin="20,12,0,0">
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="210"/><ColumnDefinition Width="120"/></Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                            <TextBlock Grid.Row="0" Grid.Column="0" Text="Maximum rows returned to AI" Style="{StaticResource FormLabelStyle}"/>
+                            <TextBox x:Name="MaximumRowsText" Grid.Row="0" Grid.Column="1" Style="{StaticResource FormTextBoxStyle}"/>
+                            <TextBlock Grid.Row="1" Grid.Column="0" Text="Query timeout (seconds)" Style="{StaticResource FormLabelStyle}"/>
+                            <TextBox x:Name="QueryTimeoutText" Grid.Row="1" Grid.Column="1" Style="{StaticResource FormTextBoxStyle}"/>
+                        </Grid>
+                        <TextBlock Margin="0,18,0,0" TextWrapping="Wrap"
+                                   Text="Dataset access is denied until both MCP tools are enabled here and the individual dataset is marked Available to MCP from its right-click menu. Cloud models receive only the schema, sample, query result or editor text returned by approved tools—not direct file access."/>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+        </TabControl>
+    </DockPanel>
+</Window>

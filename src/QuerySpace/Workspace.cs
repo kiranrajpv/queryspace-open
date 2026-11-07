@@ -99,6 +99,18 @@ public sealed class Workspace
         }
     }
 
+    public void SetDatasetMcpAccess(DatasetInfo dataset, bool enabled)
+    {
+        lock (_syncRoot)
+        {
+            var stored = State.Datasets.FirstOrDefault(d => d.Id == dataset.Id)
+                ?? throw new InvalidOperationException("Dataset no longer exists in this workspace.");
+            stored.ExposeToMcp = enabled;
+            dataset.ExposeToMcp = enabled;
+            Save();
+        }
+    }
+
     public string SaveScript(string name, string sql)
     {
         Directory.CreateDirectory(ScriptsFolder);

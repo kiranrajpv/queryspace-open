@@ -10,6 +10,7 @@ public sealed class DatasetInfo
     public string Path { get; set; } = "";
     public string? SourcePath { get; set; }
     public long? RowCount { get; set; }
+    public bool ExposeToMcp { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.Now;
 }
 

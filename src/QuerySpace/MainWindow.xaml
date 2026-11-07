@@ -4,7 +4,10 @@
         xmlns:avalonedit="http://icsharpcode.net/sharpdevelop/avalonedit"
         Title="QuerySpace" Height="820" Width="1280" MinHeight="680" MinWidth="980">
     <DockPanel>
-        <Border DockPanel.Dock="Top" Padding="10,8">
+        <Border DockPanel.Dock="Top"
+                Padding="8,6"
+                BorderBrush="{DynamicResource {x:Static SystemColors.ControlDarkBrushKey}}"
+                BorderThickness="0,0,0,1">
             <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                 <Button Click="SetWorkspace_Click" Style="{StaticResource ToolbarButtonStyle}" MinWidth="44" ToolTip="Set Workspace" AutomationProperties.Name="Set Workspace">
@@ -41,29 +44,77 @@
                 <Button Click="AnalyzeTransform_Click" Style="{StaticResource ToolbarButtonStyle}" MinWidth="44" ToolTip="Analyze Transform" AutomationProperties.Name="Analyze Transform">
                     <TextBlock Text="&#xE9D9;" FontFamily="Segoe MDL2 Assets" FontSize="17" Foreground="#744DA9"/>
                 </Button>
+                <Separator Width="12" Opacity="0"/>
+                <Button x:Name="AiAssistantButton" Click="OpenAiAssistant_Click" Style="{StaticResource ToolbarButtonStyle}" MinWidth="44" ToolTip="Show QuerySpace Assistant" AutomationProperties.Name="Show QuerySpace Assistant">
+                    <TextBlock Text="&#xE8BD;" FontFamily="Segoe MDL2 Assets" FontSize="17"/>
+                </Button>
+                <Button Click="OpenAiSettings_Click" Style="{StaticResource ToolbarButtonStyle}" MinWidth="44" ToolTip="AI and MCP Settings" AutomationProperties.Name="AI and MCP Settings">
+                    <TextBlock Text="&#xE713;" FontFamily="Segoe MDL2 Assets" FontSize="17"/>
+                </Button>
             </StackPanel>
             </ScrollViewer>
         </Border>
 
-        <StatusBar DockPanel.Dock="Bottom">
-            <StatusBarItem>
-                <TextBlock x:Name="StatusText" Text="Ready"/>
-            </StatusBarItem>
-            <StatusBarItem>
-                <ProgressBar x:Name="ExtractProgressBar" Width="160" Height="16" Minimum="0" Maximum="100" Visibility="Collapsed"/>
-            </StatusBarItem>
-            <StatusBarItem HorizontalAlignment="Right">
-                <TextBlock x:Name="WorkspaceText" Text="Workspace: app storage"/>
+        <StatusBar DockPanel.Dock="Bottom" HorizontalContentAlignment="Stretch">
+            <StatusBarItem HorizontalContentAlignment="Stretch">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0" Orientation="Horizontal">
+                        <TextBlock x:Name="StatusText" Text="Ready" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                        <ProgressBar x:Name="ExtractProgressBar" Width="140" Height="12" Margin="10,0,0,0" Minimum="0" Maximum="100" Visibility="Collapsed"/>
+                    </StackPanel>
+                    <TextBlock Grid.Column="1" Text="DuckDB" Margin="12,0" VerticalAlignment="Center"/>
+                    <TextBlock Grid.Column="2" x:Name="UsageStatusText" Text="Memory" Margin="12,0" VerticalAlignment="Center"/>
+                    <TextBlock Grid.Column="3" x:Name="RowCountStatusText" Text="0 rows" Margin="12,0" VerticalAlignment="Center"/>
+                    <TextBlock Grid.Column="4" x:Name="AiRuntimeStatusText" Text="AI: ready" Margin="12,0" VerticalAlignment="Center"/>
+                    <TextBlock Grid.Column="5" x:Name="WorkspaceText" Text="Workspace: app storage" Margin="12,0,4,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="360"/>
+                </Grid>
             </StatusBarItem>
         </StatusBar>
 
         <Grid>
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="330" MinWidth="240"/>
+                <ColumnDefinition Width="46"/>
+                <ColumnDefinition Width="284" MinWidth="220"/>
                 <ColumnDefinition Width="5"/>
                 <ColumnDefinition Width="*" MinWidth="480"/>
+                <ColumnDefinition x:Name="AiAssistantSplitterColumn" Width="0"/>
+                <ColumnDefinition x:Name="AiAssistantColumn" Width="0"/>
             </Grid.ColumnDefinitions>
-            <DockPanel Grid.Column="0">
+            <Border Grid.Column="0"
+                    BorderBrush="{DynamicResource {x:Static SystemColors.ControlDarkBrushKey}}"
+                    BorderThickness="0,0,1,0"
+                    Background="{DynamicResource {x:Static SystemColors.ControlBrushKey}}">
+                <StackPanel>
+                    <Button Tag="0" ToolTip="Local Datasets" Click="ExplorerActivity_Click" Style="{StaticResource ToolbarButtonStyle}"
+                            MinWidth="40" Width="40" Height="40"
+                            Background="{DynamicResource {x:Static SystemColors.HighlightBrushKey}}"
+                            Foreground="{DynamicResource {x:Static SystemColors.HighlightTextBrushKey}}">
+                        <TextBlock Text="&#xE958;" FontFamily="Segoe MDL2 Assets" FontSize="17"/>
+                    </Button>
+                    <Button Tag="1" ToolTip="SQL Scripts" Click="ExplorerActivity_Click" Style="{StaticResource ToolbarButtonStyle}" MinWidth="40" Width="40" Height="40">
+                        <TextBlock Text="&#xE8A5;" FontFamily="Segoe MDL2 Assets" FontSize="17"/>
+                    </Button>
+                    <Button Tag="2" ToolTip="Templates" Click="ExplorerActivity_Click" Style="{StaticResource ToolbarButtonStyle}" MinWidth="40" Width="40" Height="40">
+                        <TextBlock Text="&#xE8FD;" FontFamily="Segoe MDL2 Assets" FontSize="17"/>
+                    </Button>
+                    <Button Tag="3" ToolTip="Connections" Click="ExplorerActivity_Click" Style="{StaticResource ToolbarButtonStyle}" MinWidth="40" Width="40" Height="40">
+                        <TextBlock Text="&#xE968;" FontFamily="Segoe MDL2 Assets" FontSize="17"/>
+                    </Button>
+                    <Button Tag="4" ToolTip="In-Memory Objects" Click="ExplorerActivity_Click" Style="{StaticResource ToolbarButtonStyle}" MinWidth="40" Width="40" Height="40">
+                        <TextBlock Text="&#xE7C2;" FontFamily="Segoe MDL2 Assets" FontSize="17"/>
+                    </Button>
+                </StackPanel>
+            </Border>
+            <DockPanel Grid.Column="1">
+                <Border DockPanel.Dock="Top" Padding="10,7"
+                        BorderBrush="{DynamicResource {x:Static SystemColors.ControlDarkBrushKey}}"
+                        BorderThickness="0,0,0,1">
+                    <TextBlock x:Name="ExplorerSectionTitle" Text="LOCAL DATASETS" FontSize="12" FontWeight="SemiBold"/>
+                </Border>
                 <Border DockPanel.Dock="Top"
                         Margin="4,4,4,6"
                         MinHeight="30"
@@ -104,15 +155,23 @@
                              TextChanged="ExplorerSearchText_TextChanged"/>
                     </Grid>
                 </Border>
-                <TabControl x:Name="ExplorerTabs">
+                <TabControl x:Name="ExplorerTabs" BorderThickness="0">
+                    <TabControl.Template>
+                        <ControlTemplate TargetType="TabControl">
+                            <ContentPresenter Content="{TemplateBinding SelectedContent}" ContentTemplate="{TemplateBinding SelectedContentTemplate}"/>
+                        </ControlTemplate>
+                    </TabControl.Template>
                     <TabItem Header="Local Datasets">
                         <TreeView x:Name="DatasetsTree"
                                   PreviewMouseLeftButtonDown="DatasetsTree_PreviewMouseLeftButtonDown"
+                                  PreviewMouseRightButtonDown="DatasetsTree_PreviewMouseRightButtonDown"
                                   PreviewMouseMove="DatasetsTree_PreviewMouseMove"
                                   MouseDoubleClick="DatasetsTree_DoubleClick">
                         <TreeView.ContextMenu>
-                            <ContextMenu>
+                            <ContextMenu Opened="DatasetContextMenu_Opened">
                                 <MenuItem Header="Information" Click="DatasetInfo_Click"/>
+                                <MenuItem x:Name="DatasetMcpMenuItem" Header="Available to MCP / AI" IsCheckable="True" Click="DatasetMcpAccess_Click"/>
+                                <Separator/>
                                 <MenuItem Header="Rename" Click="RenameDataset_Click"/>
                                 <MenuItem Header="Delete" Click="DeleteDataset_Click"/>
                             </ContextMenu>
@@ -170,8 +229,8 @@
                     </TabItem>
                 </TabControl>
             </DockPanel>
-            <GridSplitter Grid.Column="1" Width="5" HorizontalAlignment="Stretch"/>
-            <Grid Grid.Column="2">
+            <GridSplitter Grid.Column="2" Width="5" HorizontalAlignment="Stretch"/>
+            <Grid Grid.Column="3">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
@@ -179,14 +238,14 @@
                     <RowDefinition Height="5"/>
                     <RowDefinition Height="3*" MinHeight="220"/>
                 </Grid.RowDefinitions>
-                <Border Grid.Row="0" Padding="10,8">
+                <Border Grid.Row="0" Padding="10,7" BorderBrush="{DynamicResource {x:Static SystemColors.ControlDarkBrushKey}}" BorderThickness="0,0,0,1">
                     <DockPanel LastChildFill="False">
-                        <TextBlock Text="Query" FontWeight="SemiBold" VerticalAlignment="Center" DockPanel.Dock="Left" Margin="0,0,18,0"/>
+                        <TextBlock Text="QUERY" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" DockPanel.Dock="Left" Margin="0,0,18,0"/>
                         <Button Click="RunSql_Click" DockPanel.Dock="Left" Style="{StaticResource PrimaryToolbarButtonStyle}" Margin="0,0,14,0" MinWidth="44" ToolTip="Run SQL" AutomationProperties.Name="Run SQL">
                             <TextBlock Text="&#xE768;" FontFamily="Segoe MDL2 Assets" FontSize="17" Foreground="#23965F"/>
                         </Button>
                         <TextBlock Text="Use:" VerticalAlignment="Center" DockPanel.Dock="Left" Margin="0,0,6,0"/>
-                        <ComboBox x:Name="UsageCombo" Width="130" MinHeight="32" SelectedIndex="0" DockPanel.Dock="Left" Margin="0,0,18,0">
+                        <ComboBox x:Name="UsageCombo" Width="130" MinHeight="32" SelectedIndex="0" DockPanel.Dock="Left" Margin="0,0,18,0" SelectionChanged="UsageCombo_SelectionChanged">
                             <ComboBoxItem>Memory</ComboBoxItem>
                             <ComboBoxItem>Read Only</ComboBoxItem>
                         </ComboBox>
@@ -208,8 +267,8 @@
                             SelectionChanged="QueryTabs_SelectionChanged"/>
                 <Border Grid.Row="2" BorderBrush="{DynamicResource {x:Static SystemColors.ControlDarkBrushKey}}" BorderThickness="1">
                     <avalonedit:TextEditor x:Name="SqlEditor"
-                                            FontFamily="Consolas"
-                                            FontSize="15"
+                                            FontFamily="Cascadia Code,Consolas"
+                                            FontSize="14"
                                             ShowLineNumbers="True"
                                             VerticalScrollBarVisibility="Auto"
                                             HorizontalScrollBarVisibility="Auto"
@@ -219,8 +278,41 @@
                                             Text="select * from dataset_name limit 100;"/>
                 </Border>
                 <GridSplitter Grid.Row="3" Height="5" HorizontalAlignment="Stretch"/>
-                <DataGrid x:Name="ResultsGrid" Grid.Row="4"/>
+                <TabControl x:Name="OutputTabs" Grid.Row="4" ItemContainerStyle="{StaticResource OutputTabItemStyle}">
+                    <TabItem Header="Results" ToolTip="Query results">
+                        <DataGrid x:Name="ResultsGrid" AutoGenerateColumns="True" IsReadOnly="True" EnableRowVirtualization="True" EnableColumnVirtualization="True"/>
+                    </TabItem>
+                    <TabItem Header="Messages" ToolTip="Application messages">
+                        <ListBox x:Name="MessagesList" FontFamily="Consolas" FontSize="12"/>
+                    </TabItem>
+                    <TabItem Header="Queue" ToolTip="SQL script execution queue">
+                        <ListBox x:Name="ExecutionQueueList" FontFamily="Consolas" FontSize="12"/>
+                    </TabItem>
+                    <TabItem Header="MCP" ToolTip="MCP and AI tool activity">
+                        <ListBox x:Name="McpActivityList" FontFamily="Consolas" FontSize="12"/>
+                    </TabItem>
+                    <TabItem Header="Quality" ToolTip="Data quality analysis">
+                        <StackPanel Margin="12" HorizontalAlignment="Left">
+                            <TextBlock Text="Analyze the current result set for completeness, uniqueness and numeric outliers." TextWrapping="Wrap" Margin="0,0,0,10"/>
+                            <Button Content="Analyze Current Results" Click="AnalyzeQuality_Click" Style="{StaticResource ToolbarButtonStyle}"/>
+                        </StackPanel>
+                    </TabItem>
+                </TabControl>
             </Grid>
+            <GridSplitter x:Name="AiAssistantSplitter"
+                          Grid.Column="4"
+                          Width="5"
+                          HorizontalAlignment="Stretch"
+                          Visibility="Collapsed"/>
+            <Border x:Name="AiAssistantPanelBorder"
+                    Grid.Column="5"
+                    MinWidth="320"
+                    BorderBrush="{DynamicResource {x:Static SystemColors.ControlDarkBrushKey}}"
+                    BorderThickness="1,0,0,0"
+                    Background="{DynamicResource {x:Static SystemColors.WindowBrushKey}}"
+                    Visibility="Collapsed">
+                <ContentControl x:Name="AiAssistantHost"/>
+            </Border>
         </Grid>
     </DockPanel>
 </Window>

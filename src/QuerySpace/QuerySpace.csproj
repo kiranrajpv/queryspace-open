@@ -6,9 +6,11 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <AssemblyName>QuerySpace</AssemblyName>
     <RootNamespace>QuerySpace</RootNamespace>
     <ApplicationIcon>Assets\QuerySpace.ico</ApplicationIcon>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
     <Version>0.1.0</Version>
     <Authors>QuerySpace contributors</Authors>
     <Description>Native Windows SQL workspace for local Parquet datasets and database extracts.</Description>
@@ -16,16 +18,17 @@
 
   <ItemGroup>
     <PackageReference Include="AvalonEdit" Version="6.3.1.120" />
-    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
-    <PackageReference Include="CsvHelper" Version="33.1.0" />
     <PackageReference Include="DuckDB.NET.Data.Full" Version="1.5.3" />
     <PackageReference Include="ExcelDataReader" Version="3.9.0" />
-    <PackageReference Include="ExcelDataReader.DataSet" Version="3.9.0" />
     <PackageReference Include="Microsoft.Data.SqlClient" Version="7.0.2" />
-    <PackageReference Include="Microsoft.ML" Version="5.0.0" />
+    <PackageReference Include="Microsoft.AI.Foundry.Local" Version="2.0.1" />
+    <PackageReference Include="Microsoft.Agents.AI" Version="1.22.0" />
+    <PackageReference Include="Microsoft.Agents.AI.Harness" Version="1.22.0" />
+    <PackageReference Include="Microsoft.Extensions.AI" Version="10.10.0" />
     <PackageReference Include="Parquet.Net" Version="6.0.3" />
     <PackageReference Include="Snowflake.Data" Version="5.7.0" />
     <PackageReference Include="System.Data.Odbc" Version="9.0.7" />
+    <PackageReference Include="System.Management" Version="9.0.13" />
     <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="9.0.13" />
   </ItemGroup>
 

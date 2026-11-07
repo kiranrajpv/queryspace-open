@@ -13,8 +13,10 @@ $ErrorActionPreference = "Stop"
 
 $repoRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
 $projectPath = Join-Path $repoRoot "src\QuerySpace\QuerySpace.csproj"
+$mcpProjectPath = Join-Path $repoRoot "src\QuerySpace.McpServer\QuerySpace.McpServer.csproj"
 $solutionPath = Join-Path $repoRoot "QuerySpace.sln"
 $publishDir = Join-Path $repoRoot "publish\QuerySpace"
+$mcpPublishDir = Join-Path $publishDir "mcp"
 $installerScript = Join-Path $repoRoot "installer\QuerySpace.iss"
 $installerOutputDir = Join-Path $repoRoot "installer-output"
 
@@ -108,6 +110,28 @@ $publishArgs = @(
 )
 
 dotnet @publishArgs
+
+$mcpPublishArgs = @(
+    "publish", $mcpProjectPath,
+    "-c", $Configuration,
+    "-r", $Runtime,
+    "--self-contained", $selfContained.ToString().ToLowerInvariant(),
+    "-p:PublishSingleFile=false",
+    "-p:DebugType=embedded",
+    "-p:DebugSymbols=false",
+    "-o", $mcpPublishDir
+)
+
+dotnet @mcpPublishArgs
+
+# Native NuGet packages can include static/import libraries for developers linking
+# native code. QuerySpace only loads the corresponding DLLs at runtime, so the
+# .lib files are not part of the installed application.
+$linkLibraries = Get-ChildItem -LiteralPath $publishDir -Filter "*.lib" -File -Recurse
+if ($linkLibraries.Count -gt 0) {
+    $linkLibraries | Remove-Item -Force
+    Write-Host "Removed $($linkLibraries.Count) unused native link libraries from the publish payload."
+}
 
 if ($SkipInstaller) {
     Write-Host "Published application folder:"

@@ -1,389 +1,256 @@
 <p align="center">
-  <img src="src/QuerySpace/Assets/QuerySpace.ico" alt="QuerySpace icon" width="96" height="96">
+  <img src="docs/assets/queryspace-hero.svg" alt="QuerySpace — Local data. Fast SQL. Private by design." width="100%">
 </p>
 
-# QuerySpace
+<p align="center">
+  <strong>A local-first SQL workspace for files, Parquet datasets, and database extracts.</strong>
+</p>
 
-QuerySpace is a native Windows desktop application for working with local Parquet datasets and database extracts.
+<p align="center">
+  Import data, build reliable extracts, query with DuckDB, and export results without running a separate database server.
+</p>
 
-It provides a local SQL workspace for importing CSV, Excel, and Parquet files, extracting data from supported databases, storing extracts as Parquet, querying datasets with DuckDB SQL, exporting results, and running data-quality and SAP material transformation analysis.
+<p align="center">
+  <a href="https://github.com/kiranrajpv/queryspace-csharp/blob/main/LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-2ea44f"></a>
+  <img alt="Platform: Windows" src="https://img.shields.io/badge/platform-Windows-0078D4?logo=windows11&amp;logoColor=white">
+  <img alt=".NET 9" src="https://img.shields.io/badge/.NET-9.0-512BD4?logo=dotnet&amp;logoColor=white">
+  <img alt="DuckDB" src="https://img.shields.io/badge/DuckDB-embedded-FFF000?logo=duckdb&amp;logoColor=111111">
+  <img alt="Storage: Parquet" src="https://img.shields.io/badge/storage-Parquet-0A7F83">
+</p>
 
-## Features
+<p align="center">
+  <a href="#why-queryspace">Why QuerySpace</a> ·
+  <a href="#quick-start">Quick Start</a> ·
+  <a href="#main-features">Features</a> ·
+  <a href="#optional-ai-assistant">AI Assistant</a> ·
+  <a href="#mcp-integration">MCP</a> ·
+  <a href="#build-from-source">Build</a> ·
+  <a href="#technology-and-dependencies">Dependencies</a> ·
+  <a href="#security-notes">Security</a>
+</p>
 
-- Native WPF desktop app.
-- Workspace folder selection.
-- Local dataset explorer.
-- SQL scripts explorer.
-- Built-in SQL Templates explorer for Extract, Transform/Pre-Load, and Post-Load validation starting points.
-- Connections explorer.
-- In-Memory DuckDB object explorer for session tables, views, macros/functions, indexes, sequences, and schemas.
-- AvalonEdit SQL editor with line numbers, QuerySpace DuckDB SQL coloring, autocomplete, and DuckDB snippets for common statements such as `create or replace view`.
-- Import CSV, Excel, or Parquet into workspace-managed Parquet datasets.
-- Normalize common Excel/CSV null markers such as `#N/A`, `#VALUE!`, `#REF!`, `#DIV/0!`, `NULL`, `N/A`, and blanks.
-- Deterministic dataset files: `workspace\datasets\<dataset_name>.parquet`.
-- Duplicate dataset names blocked. User must delete the existing dataset or choose a different name.
-- DuckDB SQL over local Parquet datasets.
-- Memory mode by default.
-- Read-only mode for SELECT-style queries.
-- Multiple-statement SQL script execution in memory mode.
-- Preview row limit textbox.
-- Export query result to CSV, Excel `.xlsx`, or Parquet. CSV and Parquet exports stream through DuckDB; Excel exports stream to `.xlsx` and is limited by Excel's 1,048,576-row sheet limit. Exports write to a `.partial` file first and only replace the final file after success.
-- Data quality report with score, null percentages, unique counts, and CPU-only numeric outlier detection.
-- Tagged SQL transformation analysis for SAP Material projects: validates ECC extract/source columns, pre-load transformed columns, cross-reference usage, and S/4 MDG post-load values from the query result grid.
-- ODBC DSN connection with an editable dropdown populated from Windows ODBC Administrator DSNs.
-- Direct SQL Server connection through Microsoft SqlClient.
-- Snowflake connection through Snowflake .NET connector with password, Programmatic Access Token (PAT), or OAuth token option.
-- SAP HANA should be used through ODBC DSN unless your company separately approves SAP's ADO.NET/HANA client redistribution.
-- Passwords/tokens stored with Windows DPAPI for the current Windows user.
-- Base query extraction streams directly into Zstandard-compressed Parquet row groups with progress feedback and cancellation.
-- Extraction defaults to 250,000-row batches/row groups for better large-extract throughput and compression.
-- All-or-nothing extraction behavior: partial files are deleted on failure/cancel.
-- Saved extract query `.sql` files shown under their connection; opening one reopens the Extract Base Query dialog pre-filled so it can be rerun.
-- Dataset information dialog with path, file size, rows, and schema.
-- Inno Setup installer script.
+## Why QuerySpace
 
-## Repository layout
+QuerySpace keeps analytical work simple and close to the data.
 
-```text
-src\QuerySpace\        WPF application source
-src\QuerySpace\Assets  QuerySpace icon
-src\QuerySpace\Templates Built-in SQL templates copied into the published app
-installer\             Inno Setup installer script
+- **Local-first by default.** Files and query results stay on the computer unless the user explicitly connects to an external service.
+- **Parquet-native workflows.** Imports and database extracts become predictable, reusable Parquet datasets.
+- **One focused workspace.** Data discovery, SQL editing, extraction, validation, export, and optional AI tools live in one Windows application.
+
+> [!NOTE]
+> QuerySpace does not require a separate DuckDB server. DuckDB runs inside the application, and the self-contained installer includes the required .NET runtime.
+
+## What you can do
+
+- Query Parquet datasets locally with DuckDB SQL.
+- Import CSV, Excel, and Parquet files into a managed workspace.
+- Extract large database results directly into compressed Parquet row groups.
+- Connect to SQL Server, Snowflake, and ODBC data sources.
+- Edit SQL with syntax highlighting, autocomplete, snippets, and multiple tabs.
+- Browse datasets, scripts, templates, connections, and in-memory DuckDB objects.
+- Export results to CSV, Excel, or Parquet.
+- Run data-quality and source-to-target transformation checks.
+- Use optional local or cloud AI models with permission-controlled tools.
+- Expose approved datasets to compatible MCP clients through a read-only server.
+
+## How it works
+
+```mermaid
+flowchart LR
+    A[CSV, Excel, or Parquet] --> B[Managed Parquet workspace]
+    C[SQL Server, Snowflake, or ODBC] -->|streamed extract| B
+    B --> D[Embedded DuckDB]
+    D --> E[Preview and analysis]
+    D --> F[CSV, Excel, or Parquet export]
+    B -. explicit permission .-> G[Optional AI and MCP tools]
 ```
 
-## Technology, tools, libraries, and license inventory
+## Platform
 
-This section documents the technologies used by QuerySpace, why they are used, and the license information available from project files/NuGet package metadata on this build machine.
-
-Important: this table is an engineering inventory, not legal advice. Before broad internal rollout or any external/public release, generate a formal third-party notice/SBOM from the exact release build output and have company legal/compliance review it.
-
-Package-provided license and notice text discovered in the local NuGet package cache is included in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md). Regenerate it with [scripts/generate-third-party-notices.ps1](scripts/generate-third-party-notices.ps1) whenever package versions change.
-
-### Project/runtime/build technologies
-
-| Technology / tool | Version / source | License / owner | Why QuerySpace uses it |
-|---|---:|---|---|
-| C# | .NET SDK toolchain | Microsoft / .NET Foundation | Main implementation language for the Windows desktop application. |
-| .NET | 9.0 target, `net9.0-windows` | MIT, Microsoft / .NET Foundation | Application runtime, base class libraries, cryptography APIs, WPF support, packaging/publish toolchain. |
-| WPF | Included with .NET desktop workload | MIT, Microsoft / .NET Foundation | Native Windows UI: windows, dialogs, tree views, editor text boxes, result grid, status bar, progress bar. |
-| Windows DWM API | Windows OS API | Microsoft Windows platform API | Colors the native Windows title bar Parker blue with white title text. |
-| Windows DPAPI | Windows OS API via `ProtectedData` | Microsoft Windows platform API | Encrypts stored connection passwords/tokens for the current Windows user. |
-| Windows ODBC Administrator | Windows OS tool | Microsoft Windows platform component | Users create/manage 64-bit ODBC DSNs for SQL Server, SAP HANA, and other ODBC sources. |
-| Git | Developer tool | GPL-2.0 | Source control for the repository. |
-| NuGet | .NET package manager | Apache-2.0 / Microsoft ecosystem tooling | Restores third-party .NET packages. |
-| Inno Setup 6 | Installer tool | Inno Setup License; source available | Builds the Windows installer executable and desktop/start-menu shortcuts. |
-| QuerySpace icon asset | `src\QuerySpace\Assets\QuerySpace.ico` | Project asset | Application/window/installer icon. Keep provenance/license with project assets if replaced. |
-
-### Direct NuGet dependencies
-
-These are referenced directly in [QuerySpace.csproj](src/QuerySpace/QuerySpace.csproj).
-
-| Package | Version | License from NuGet metadata | Why QuerySpace uses it |
-|---|---:|---|---|
-| `AvalonEdit` | 6.3.1.120 | MIT | Replaces the plain query textbox with a SQL editor that supports line numbers, QuerySpace DuckDB SQL coloring, autocomplete, and snippets. |
-| `CommunityToolkit.Mvvm` | 8.4.2 | MIT | MVVM utility package available for UI binding/view-model work. |
-| `CsvHelper` | 33.1.0 | MS-PL OR Apache-2.0 | CSV handling support for import/export workflows. |
-| `DuckDB.NET.Data.Full` | 1.5.3 | MIT | Embedded DuckDB ADO.NET provider plus bundled native DuckDB runtime. Used for local SQL over Parquet, CSV-to-Parquet import, result previews, and CSV export. |
-| `ExcelDataReader` | 3.9.0 | MIT | Reads `.xls` and `.xlsx` files before converting them to workspace Parquet datasets. |
-| `ExcelDataReader.DataSet` | 3.9.0 | MIT | ExcelDataReader helper package for dataset-style Excel handling. |
-| `Microsoft.Data.SqlClient` | 7.0.2 | MIT | Direct Microsoft SQL Server connection support without requiring ODBC DSN. |
-| `Microsoft.ML` | 5.0.0 | MIT | Supports local CPU-only data-quality analysis capabilities. |
-| `Parquet.Net` | 6.0.3 | MIT | Writes database extraction results directly into Parquet row groups with Zstandard compression. |
-| `Snowflake.Data` | 5.7.0 | Apache-2.0 | Direct Snowflake connection/extraction support using password, Programmatic Access Token (PAT), or OAuth token configuration. |
-| `System.Data.Odbc` | 9.0.7 | .NET runtime package; license metadata not declared in local `.nuspec` | ODBC DSN connectivity for SQL Server, SAP HANA, and other user-configured ODBC data sources. |
-| `System.Security.Cryptography.ProtectedData` | 9.0.13 | MIT | Provides Windows DPAPI integration for encrypted secret storage. |
-
-### Transitive NuGet dependencies
-
-These are pulled by the direct dependencies above. Versions are from `dotnet list package --include-transitive`.
-
-| Package | Version | License from NuGet metadata | Why it is present |
-|---|---:|---|---|
-| `Apache.Arrow` | 14.0.2 | `LICENSE.txt` in package; Apache Arrow project license is Apache-2.0 | Transitive dependency used by data/connector packages for columnar data handling. |
-| `AWSSDK.Core` | 4.0.3.28 | Apache-2.0 | Transitive dependency of Snowflake/cloud storage support. |
-| `AWSSDK.S3` | 4.0.20.4 | Apache-2.0 | Transitive dependency of Snowflake/cloud storage support. |
-| `Azure.Core` | 1.25.0 | MIT | Transitive Azure SDK base dependency. |
-| `Azure.Storage.Blobs` | 12.13.0 | MIT | Transitive dependency for connector/cloud storage scenarios. |
-| `Azure.Storage.Common` | 12.12.0 | MIT | Transitive Azure Storage support. |
-| `BouncyCastle.Cryptography` | 2.6.2 | License metadata not declared in local `.nuspec`; verify package license before redistribution | Transitive cryptography dependency used by connector/security packages. |
-| `CommunityToolkit.HighPerformance` | 8.4.2 | MIT | Transitive dependency of CommunityToolkit packages. |
-| `DuckDB.NET.Bindings.Full` | 1.5.3 | License metadata not declared in local `.nuspec`; DuckDB.NET project is MIT | Native DuckDB bindings bundled by `DuckDB.NET.Data.Full`. |
-| `Google.Api.Gax` | 4.12.1 | BSD-3-Clause | Transitive Google API support used by cloud connector packages. |
-| `Google.Api.Gax.Rest` | 4.12.1 | BSD-3-Clause | Transitive REST support for Google API packages. |
-| `Google.Apis` | 1.72.0 | Apache-2.0 | Transitive Google API client dependency. |
-| `Google.Apis.Auth` | 1.72.0 | Apache-2.0 | Transitive Google auth dependency. |
-| `Google.Apis.Core` | 1.72.0 | Apache-2.0 | Transitive Google API core dependency. |
-| `Google.Apis.Storage.v1` | 1.71.0.3920 | Apache-2.0 | Transitive Google Cloud Storage API dependency. |
-| `Google.Cloud.Storage.V1` | 4.14.0 | Apache-2.0 | Transitive Google Cloud Storage dependency. |
-| `K4os.Compression.LZ4` | 1.3.8 | License URL in package metadata; verify before redistribution | LZ4 compression support used transitively by data/Parquet-related packages. |
-| `Microsoft.Bcl.AsyncInterfaces` | 9.0.4 | MIT | .NET async interface support for packages targeting multiple frameworks. |
-| `Microsoft.Bcl.Cryptography` | 9.0.13 | MIT | Cryptography support library used transitively by Microsoft packages. |
-| `Microsoft.Data.SqlClient.Extensions.Abstractions` | 7.0.2 | MIT | Transitive SQL Client extension abstractions. |
-| `Microsoft.Data.SqlClient.Internal.Logging` | 7.0.2 | License metadata not declared in local `.nuspec`; verify before redistribution | Transitive SQL Client logging package. |
-| `Microsoft.Data.SqlClient.SNI.runtime` | 6.0.2 | License metadata not declared in local `.nuspec`; verify before redistribution | Native SQL Server network interface runtime used by SqlClient. |
-| `Microsoft.Extensions.Caching.Abstractions` | 9.0.13 | MIT | Transitive Microsoft.Extensions support. |
-| `Microsoft.Extensions.Caching.Memory` | 9.0.13 | MIT | Transitive in-memory cache support. |
-| `Microsoft.Extensions.DependencyInjection` | 9.0.5 | MIT | Transitive dependency injection support. |
-| `Microsoft.Extensions.DependencyInjection.Abstractions` | 9.0.13 | MIT | Transitive dependency injection abstractions. |
-| `Microsoft.Extensions.Logging` | 9.0.5 | MIT | Transitive logging support. |
-| `Microsoft.Extensions.Logging.Abstractions` | 9.0.13 | MIT | Transitive logging abstractions. |
-| `Microsoft.Extensions.Options` | 9.0.13 | MIT | Transitive options/configuration support. |
-| `Microsoft.Extensions.Primitives` | 9.0.13 | MIT | Transitive Microsoft.Extensions primitives. |
-| `Microsoft.IdentityModel.Abstractions` | 8.16.0 | License metadata not declared in local `.nuspec`; verify before redistribution | Transitive identity/token abstraction support. |
-| `Microsoft.IdentityModel.JsonWebTokens` | 8.16.0 | MIT | Transitive JWT support. |
-| `Microsoft.IdentityModel.Logging` | 8.16.0 | MIT | Transitive IdentityModel logging support. |
-| `Microsoft.IdentityModel.Protocols` | 8.16.0 | MIT | Transitive identity protocol support. |
-| `Microsoft.IdentityModel.Protocols.OpenIdConnect` | 8.16.0 | MIT | Transitive OpenID Connect protocol support. |
-| `Microsoft.IdentityModel.Tokens` | 8.16.0 | MIT | Transitive token validation/handling support. |
-| `Microsoft.IO.RecyclableMemoryStream` | 3.0.1 | MIT | Transitive memory-stream optimization dependency. |
-| `Microsoft.ML.CpuMath` | 5.0.0 | MIT | CPU math runtime for ML.NET. |
-| `Microsoft.ML.DataView` | 5.0.0 | MIT | ML.NET data-view abstractions. |
-| `Microsoft.SqlServer.Server` | 1.0.0 | License metadata not declared in local `.nuspec`; verify before redistribution | Transitive SQL Server type/support dependency. |
-| `Newtonsoft.Json` | 13.0.4 | MIT | Transitive JSON serialization dependency used by connector packages. |
-| `Snappier` | 1.3.1 | BSD-3-Clause | Snappy compression support used by Parquet/Arrow-style data packages. |
-| `System.Buffers` | 4.6.1 | License metadata not declared in local `.nuspec`; .NET library packages are generally MIT but verify before redistribution | Transitive buffer primitives. |
-| `System.CodeDom` | 9.0.4 | License metadata not declared in local `.nuspec`; verify before redistribution | Transitive CodeDOM support. |
-| `System.Collections.Immutable` | 9.0.4 | MIT | Immutable collection primitives used transitively. |
-| `System.Configuration.ConfigurationManager` | 9.0.13 | MIT | Configuration support required by some database/connector packages. |
-| `System.Diagnostics.DiagnosticSource` | 6.0.2 | MIT | Diagnostic/activity tracing support. |
-| `System.Diagnostics.EventLog` | 9.0.13 | MIT | Windows Event Log support used transitively by Microsoft packages. |
-| `System.IdentityModel.Tokens.Jwt` | 8.16.0 | MIT | JWT support used by identity/auth connector dependencies. |
-| `System.IO.Hashing` | 6.0.0 | MIT | Hashing primitives used transitively. |
-| `System.Management` | 7.0.2 | MIT | Windows management APIs used transitively by SQL/client packages. |
-| `System.Memory` | 4.6.3 | MIT | Memory primitives used by many packages. |
-| `System.Memory.Data` | 1.0.2 | MIT | Binary/memory data support used transitively. |
-| `System.Numerics.Tensors` | 9.0.4 | MIT | Tensor primitives used by ML.NET. |
-| `System.Numerics.Vectors` | 4.5.0 | License URL in package metadata; .NET library package, verify before redistribution | SIMD vector primitives used by math/ML packages. |
-| `System.Reflection.Emit.Lightweight` | 4.7.0 | MIT | Lightweight dynamic-code support used transitively. |
-| `System.Runtime.CompilerServices.Unsafe` | 6.1.2 | License metadata not declared in local `.nuspec`; verify before redistribution | Low-level runtime helper package used by performance-sensitive dependencies. |
-| `System.Security.Cryptography.Pkcs` | 9.0.13 | MIT | PKCS cryptography support used transitively. |
-| `System.Text.Encodings.Web` | 4.7.2 | MIT | Web-safe text encoding support used by JSON/auth packages. |
-| `System.Text.Json` | 4.7.2 | MIT | JSON serialization support used transitively. |
-| `System.Threading.Channels` | 9.0.4 | MIT | Async channel support used by connector/runtime packages. |
-| `System.Threading.Tasks.Extensions` | 4.5.4 | License URL in package metadata; .NET library package, verify before redistribution | Async task compatibility helpers. |
-| `TimeZoneConverter` | 7.2.0 | MIT | Time zone conversion support used by Snowflake connector. |
-| `Tomlyn.Signed` | 0.17.0 | License metadata not declared in local `.nuspec`; verify before redistribution | TOML parsing support pulled transitively. |
-| `ZstdSharp.Port` | 0.8.8 | MIT | Zstandard compression support used by Parquet writing. |
-
-### External systems/drivers not bundled by QuerySpace
-
-| External component | Bundled with QuerySpace? | License / owner | Why a user may need it |
-|---|---:|---|---|
-| Microsoft SQL Server / SQL Server Express | No | Microsoft SQL Server license terms | Optional database source for base-query extraction. QuerySpace connects through `Microsoft.Data.SqlClient`. |
-| SQL Server TLS certificate / company root certificate | No | Company/Microsoft certificate infrastructure | Required for trusted encrypted SQL Server connections without `Trust server certificate`. |
-| SAP HANA Client 64-bit / HDBODBC driver | No | SAP license terms; obtain through company SAP portal/SAP Software Download Center | Required when users connect to SAP HANA through a 64-bit ODBC DSN. QuerySpace does not redistribute SAP HANA drivers. |
-| 64-bit ODBC DSNs | No | Configured by user/admin on Windows | Lets QuerySpace connect to HANA, SQL Server, and other ODBC databases through Windows ODBC Administrator. |
-| Snowflake account/password, PAT, or OAuth token | No | Snowflake terms | Optional Snowflake base-query extraction through `Snowflake.Data`. |
-
-### Dependency/security maintenance commands
-
-Run these before releasing a new installer:
-
-```powershell
-cd "C:\Users\kiran\source\queryspace-csharp"
-dotnet restore .\QuerySpace.sln
-dotnet list .\src\QuerySpace\QuerySpace.csproj package --include-transitive
-dotnet list .\src\QuerySpace\QuerySpace.csproj package --vulnerable --include-transitive
-dotnet list .\src\QuerySpace\QuerySpace.csproj package --outdated
-.\scripts\generate-third-party-notices.ps1
-```
-
-At the time this README section was updated, `dotnet list package --vulnerable --include-transitive` reported no known vulnerable packages from the configured NuGet sources.
-
-## Build from source
-
-Open PowerShell:
-
-```powershell
-cd "C:\Users\kiran\source\queryspace-csharp"
-dotnet restore .\QuerySpace.sln
-dotnet build .\QuerySpace.sln -c Release
-```
-
-Run from source:
-
-```powershell
-dotnet run --project .\src\QuerySpace\QuerySpace.csproj -c Release
-```
-
-## Publish a self-contained Windows folder
-
-Use the installer build script with `-SkipInstaller` when you only need the published application folder:
-
-```powershell
-cd "C:\Users\kiran\source\queryspace-csharp"
-.\scripts\build-installer.ps1 -SkipInstaller
-```
-
-The app EXE will be:
-
-```text
-C:\Users\kiran\source\queryspace-csharp\publish\QuerySpace\QuerySpace.exe
-```
-
-## Build installer
-
-The setup/install project is [installer\QuerySpace.iss](installer/QuerySpace.iss). It is built by [scripts\build-installer.ps1](scripts/build-installer.ps1).
-
-Install Inno Setup 6 on the build machine, then run:
-
-```powershell
-cd "C:\Users\kiran\source\queryspace-csharp"
-.\scripts\build-installer.ps1
-```
-
-Installer output:
-
-```text
-C:\Users\kiran\source\queryspace-csharp\installer-output\QuerySpace-Setup-0.1.0.exe
-```
-
-The installer includes the app files, desktop/start-menu shortcuts, [LICENSE](LICENSE), [README.md](README.md), and [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md). Use `-FrameworkDependent` if your company deployment standard is to install the .NET Desktop Runtime separately instead of creating a self-contained installer.
-
-## SAP Material transformation analysis from tagged SQL
-
-Run a DuckDB query that returns source/ECC columns, transformed/pre-load columns, optional cross-reference columns, and optional MDG post-load columns. Add tags as SQL comments, then click **Analyze Transform**.
-
-QuerySpace includes three built-in templates in the **Templates** tab:
-
-| Template | Use it for |
+| Requirement | Details |
 |---|---|
-| `01_extract_base_query` | Starting point for extracting ECC/SAP source data through **Extract Base Query**. |
-| `02_transform_preload_analysis` | Compare ECC extract rows to transformed/pre-load rows and validate cross-reference usage. |
-| `03_post_load_validation` | Compare ECC source, transformed/pre-load, cross-reference, and S/4 MDG post-load rows. |
+| Operating system | Windows 10 or Windows 11, 64-bit |
+| Runtime | Included in the self-contained installer |
+| Source build | .NET 9 SDK |
+| Installer build | Inno Setup 6 |
 
-Double-click a template to load it into the Query editor, then replace dataset/table/column names with your project names.
+QuerySpace is currently a Windows-only WPF application.
 
-Useful tags:
+## Quick start
 
-| Tag | Purpose |
-|---|---|
-| `@analysis` | Analysis name, for example `sap-material-transformation`. |
-| `@source` / `@extract` | ECC extract/source dataset name. |
-| `@target` / `@preload` | Transformed pre-load dataset name. |
-| `@postload` | S/4 MDG post-load dataset name. |
-| `@xref` | Cross-reference dataset used by the transformation. |
-| `@keys` | Business key columns returned in the result. |
-| `@source-prefix` / `@extract-prefix` | Prefix for ECC/source columns in the result, default `source_`. |
-| `@target-prefix` / `@preload-prefix` | Prefix for transformed/pre-load columns, default `transformed_`. |
-| `@postload-prefix` | Prefix for MDG post-load columns, default `mdg_`. |
-| `@xref-prefix` | Prefix for cross-reference columns, default `xref_`. |
-| `@compare` | Explicit source/transformed column pairs, for example `source_matnr=transformed_matnr`. |
-| `@xref-values` | Transformed column to expected xref column, for example `transformed_matnr=xref_mdg_matnr`. |
-| `@xref-valid-from` / `@xref-valid-to` | Cross-reference validity date columns. |
-| `@business-date` | Date used for validity checks. |
-| `@rules` | Rules to run. If omitted, QuerySpace runs the standard SAP material transformation rule set. |
-| `@numeric-tolerance` | Allowed numeric difference for quantity/amount fields. |
-| `@date-tolerance-days` | Allowed date difference. |
-| `@xref-default-values` | Default/unmapped values to flag, for example `UNKNOWN,N/A,UNMAPPED`. |
-
-Supported rules include `null-introduced`, `value-changed`, `numeric-drift`, `date-drift`, `leading-zero-loss`, `case-change`, `trim-change`, `xref-missing`, `xref-mismatch`, `xref-expired`, `xref-default-used`, `duplicate-key`, `postload-mismatch`, and `distribution-shift`.
-
-Example:
-
-```sql
--- @analysis: sap-material-transformation
--- @source: ecc_material_extract
--- @target: material_preload
--- @postload: mdg_material_postload
--- @xref: material_crossref
--- @keys: source_matnr, source_werks
--- @source-prefix: source_
--- @target-prefix: transformed_
--- @postload-prefix: mdg_
--- @xref-prefix: xref_
--- @compare: source_matnr=transformed_matnr, source_werks=transformed_werks, source_meins=transformed_meins, source_mtart=transformed_mtart
--- @xref-values: transformed_matnr=xref_mdg_matnr, transformed_meins=xref_target_uom
--- @xref-valid-from: xref_valid_from
--- @xref-valid-to: xref_valid_to
--- @business-date: 2026-07-04
--- @numeric-tolerance: 0.01
--- @date-tolerance-days: 1
--- @xref-default-values: UNKNOWN,N/A,UNMAPPED
--- @rules: null-introduced, value-changed, numeric-drift, leading-zero-loss, xref-missing, xref-mismatch, xref-expired, xref-default-used, duplicate-key, postload-mismatch, distribution-shift
-
-select
-  s.matnr as source_matnr,
-  s.werks as source_werks,
-  s.meins as source_meins,
-  s.mtart as source_mtart,
-  s.lvorm as source_lvorm,
-  t.matnr as transformed_matnr,
-  t.werks as transformed_werks,
-  t.meins as transformed_meins,
-  t.mtart as transformed_mtart,
-  x.legacy_matnr as xref_legacy_matnr,
-  x.mdg_matnr as xref_mdg_matnr,
-  x.target_uom as xref_target_uom,
-  x.valid_from as xref_valid_from,
-  x.valid_to as xref_valid_to,
-  m.matnr as mdg_matnr,
-  m.werks as mdg_werks,
-  m.meins as mdg_meins,
-  m.mtart as mdg_mtart
-from ecc_material_extract s
-left join material_crossref x
-  on s.matnr = x.legacy_matnr
- and s.werks = x.legacy_werks
-left join material_preload t
-  on x.mdg_matnr = t.matnr
- and s.werks = t.werks
-left join mdg_material_postload m
-  on t.matnr = m.matnr
- and t.werks = m.werks;
-```
-
-## Manual test checklist
-
-1. Launch QuerySpace.
-2. Click **Set Workspace** and choose a test folder.
-3. Import a small CSV.
-4. Confirm it appears in **Local Datasets** as only the logical dataset name.
-5. Run:
+1. Install and open QuerySpace.
+2. Select **Set Workspace** and choose a folder.
+3. Import a CSV, Excel, or Parquet file.
+4. Select the dataset in **Local Datasets**.
+5. Run a query:
 
    ```sql
-   select * from your_dataset_name limit 100;
+   select *
+   from your_dataset
+   limit 100;
    ```
 
-6. Click **Analyze Quality**.
-7. Click **Export Result**, choose CSV, Excel, or Parquet, and confirm the file is written under the workspace exports folder or chosen path.
-8. Right-click the dataset and open **Information**.
-9. Save a SQL script and confirm it appears in **SQL Scripts**.
-10. Add a SQL Server connection for local Express:
+6. Save the SQL or export the result when needed.
 
-   ```text
-   Server: NN007\SQLEXPRESS
-   Database: StudentMIS
-   Windows integrated authentication: checked
-   Require SSL/TLS encryption: checked
-   Trust server certificate: checked, if using local dev certs
-   ```
+## Workspace layout
 
-11. Run **Extract Base Query** with a small query first:
+QuerySpace keeps user data separate from the installed application.
 
-    ```sql
-    select top 100 * from dbo.YourTable;
-    ```
+```text
+workspace\
+├── datasets\       Managed Parquet datasets
+├── exports\        Exported query results
+├── queries\        Saved SQL scripts
+├── connections\    Connection definitions and saved extract queries
+└── settings.json    Workspace settings
+```
 
-12. Confirm extraction creates `workspace\datasets\<dataset_name>.parquet`.
-13. Try cancelling a longer extract and confirm partial files are removed.
-14. Run a tagged SAP material transformation query that returns source/transformed/xref/MDG columns.
-15. Click **Analyze Transform** and review **Overview**, **Issues**, **Column Pairs**, **Cross Reference**, **Recommendations**, and **Tags Used**.
+Dataset names are unique. QuerySpace will not overwrite an existing dataset. Delete the existing dataset or choose a different name.
 
-## Important notes
+## Main features
 
-- There is no local HTTP backend, so there is no localhost API for other local processes to call.
-- SAP HANA direct ADO.NET support is not bundled. Use SAP HANA through ODBC DSN unless SAP licensing/deployment is separately approved.
-- For very large extracts, QuerySpace writes database rows directly into Parquet row groups under a `.partial` file and renames it only after the extract succeeds. Cancelled or failed extracts delete the partial file.
-- SQL scripts saved directly by the user appear in **SQL Scripts**. Base extraction SQL appears under the source connection to avoid showing the same query in two places.
+### Local datasets
 
-## VS Code MCP integration
+- Imports CSV, `.xls`, `.xlsx`, and Parquet files.
+- Stores managed datasets as `datasets\<dataset_name>.parquet`.
+- Handles quoted CSV fields, including values that contain commas.
+- Converts common null markers such as `#N/A`, `#VALUE!`, `NULL`, and blank values.
+- Shows row count, file size, schema, and storage information.
+- Renames the physical Parquet file when a dataset is renamed.
 
-`QuerySpace.McpServer` is a separate stdio server that lets MCP clients such as GitHub Copilot read the currently configured local QuerySpace workspace. It exposes `list_datasets`, `get_dataset_schema`, `sample_dataset`, `list_sql_scripts`, `get_sql_script`, and `run_readonly_sql`.
+### SQL workspace
 
-The server is intentionally read-only. It never returns dataset paths or connection configuration, never reads `.secrets`, caps query and sample output at 500 rows, accepts only one `SELECT`/`WITH` query, and blocks mutating statements plus DuckDB file/network access functions.
+- Uses DuckDB for local analytical SQL.
+- Supports multiple query tabs and saved SQL scripts.
+- Provides syntax highlighting, line numbers, autocomplete, and DuckDB snippets.
+- Supports session tables, views, macros, indexes, sequences, and schemas.
+- Shows preview results without loading every row into the UI.
+- Runs up to three saved scripts at the same time and queues additional scripts.
 
-For development, add this to `.vscode/mcp.json` and adjust the repository path:
+### Import, extraction, and export
+
+- Streams database extracts directly into Zstandard-compressed Parquet row groups.
+- Uses a default batch size of 250,000 rows.
+- Shows progress and supports cancellation.
+- Writes to a temporary `.partial` file and keeps the final file only after success.
+- Exports results to CSV, Excel, or Parquet.
+- Streams CSV and Parquet exports for large results.
+- Limits Excel output to the Excel worksheet limit of 1,048,576 rows.
+
+### Database connections
+
+| Source | Driver used by QuerySpace | Notes |
+|---|---|---|
+| SQL Server | `Microsoft.Data.SqlClient` | Supports Windows authentication, SQL authentication, encryption, and trusted server certificates. |
+| Snowflake | `Snowflake.Data` | Supports password, Programmatic Access Token (PAT), OAuth token, and optional proxy settings. |
+| ODBC | Windows 64-bit ODBC | Supports configured DSNs when the required 64-bit vendor driver is installed. |
+
+Database drivers and servers are not bundled unless listed in the dependency table below. Vendor-specific client software must be installed and licensed separately.
+
+### Data quality and transformation validation
+
+QuerySpace can calculate:
+
+- Row and column counts.
+- Null percentages.
+- Unique-value counts.
+- Numeric outlier indicators.
+- Duplicate business keys.
+- Source-to-target value changes.
+- Numeric and date drift.
+- Leading-zero, case, and whitespace changes.
+- Missing, expired, defaulted, or mismatched cross-reference values.
+- Pre-load to post-load mismatches.
+
+The **Templates** panel contains starting queries for:
+
+1. Source extraction.
+2. Transformation and pre-load validation.
+3. Post-load validation.
+
+<details>
+<summary><strong>View a tagged source-to-target validation example</strong></summary>
+
+Tagged SQL tells QuerySpace how returned columns should be compared:
+
+```sql
+-- @analysis: source-target-validation
+-- @source: source_data
+-- @target: transformed_data
+-- @postload: loaded_data
+-- @xref: reference_data
+-- @keys: source_item_id
+-- @compare: source_item_id=transformed_item_id, source_unit=transformed_unit
+-- @xref-values: transformed_item_id=xref_target_item_id
+-- @rules: null-introduced, value-changed, xref-missing, postload-mismatch
+
+select
+    source.item_id as source_item_id,
+    source.unit as source_unit,
+    target.item_id as transformed_item_id,
+    target.unit as transformed_unit,
+    xref.target_item_id as xref_target_item_id,
+    loaded.item_id as loaded_item_id
+from source_data source
+left join reference_data xref
+    on source.item_id = xref.source_item_id
+left join transformed_data target
+    on xref.target_item_id = target.item_id
+left join loaded_data loaded
+    on target.item_id = loaded.item_id;
+```
+
+</details>
+
+## Optional AI assistant
+
+The AI assistant is optional. Core import, extraction, DuckDB, and Parquet features work without it.
+
+QuerySpace supports:
+
+- Local models through Microsoft Foundry Local.
+- OpenAI.
+- Azure OpenAI.
+- OpenAI-compatible endpoints.
+- Streaming responses and cancellation.
+- Dataset, schema, sampling, read-only SQL, and editor tools.
+
+Local models are downloaded only after user approval. Model weights have their own publisher licenses and are not included with QuerySpace.
+
+### AI permissions
+
+AI and MCP access is disabled by default. Access requires:
+
+1. Enabling the master AI/MCP setting.
+2. Enabling the required tool permissions.
+3. Marking each allowed dataset as **Available to MCP / AI**.
+
+SQL execution is read-only, row-limited, time-limited, and restricted to approved datasets. Editor reads and writes have separate permissions. Optional audit records do not contain cloud API keys.
+
+### Local application data
+
+```text
+%LOCALAPPDATA%\QuerySpace\ai-settings.json   AI configuration
+%LOCALAPPDATA%\QuerySpace\.ai-secrets\      DPAPI-encrypted cloud secrets
+%LOCALAPPDATA%\QuerySpace\models\           Downloaded local models
+%LOCALAPPDATA%\QuerySpace\audit\            Optional tool audit records
+```
+
+Passwords and tokens are encrypted with Windows DPAPI for the current Windows user.
+
+## MCP integration
+
+`QuerySpace.McpServer` is a read-only stdio server for compatible MCP clients. It provides tools to:
+
+- List approved datasets.
+- Read dataset schemas.
+- Sample approved datasets.
+- List and read SQL scripts when permitted.
+- Run bounded, read-only DuckDB queries when permitted.
+
+The server does not expose dataset paths, connection details, or saved secrets.
+
+Example development configuration for `.vscode/mcp.json`:
 
 ```json
 {
@@ -394,29 +261,158 @@ For development, add this to `.vscode/mcp.json` and adjust the repository path:
       "args": [
         "run",
         "--project",
-        "C:\\path\\to\\queryspace-csharp\\src\\QuerySpace.McpServer\\QuerySpace.McpServer.csproj",
-        "--no-build"
+        "${workspaceFolder}\\src\\QuerySpace.McpServer\\QuerySpace.McpServer.csproj"
       ]
     }
   }
 }
 ```
 
-For an installed or published server, point `command` directly at `QuerySpace.McpServer.exe` and omit `args`:
+For an installed application, use the packaged executable:
 
 ```json
 {
   "servers": {
     "queryspace": {
       "type": "stdio",
-      "command": "C:\\Program Files\\QuerySpace\\QuerySpace.McpServer.exe"
+      "command": "C:\\Program Files\\QuerySpace\\mcp\\QuerySpace.McpServer.exe"
     }
   }
 }
 ```
 
-Build the development server before using `--no-build`:
+## Build from source
+
+Clone the repository and open PowerShell in the project root:
 
 ```powershell
-dotnet build .\src\QuerySpace.McpServer\QuerySpace.McpServer.csproj
+git clone <repository-url>
+cd queryspace-csharp
+dotnet restore .\QuerySpace.sln
+dotnet build .\QuerySpace.sln -c Release
 ```
+
+Run the application:
+
+```powershell
+dotnet run --project .\src\QuerySpace\QuerySpace.csproj -c Release
+```
+
+## Publish
+
+Create a self-contained Windows application folder without building the installer:
+
+```powershell
+.\scripts\build-installer.ps1 -SkipInstaller
+```
+
+Output:
+
+```text
+.\publish\QuerySpace\QuerySpace.exe
+```
+
+## Build the installer
+
+Install [Inno Setup 6](https://jrsoftware.org/isinfo.php), then run:
+
+```powershell
+.\scripts\build-installer.ps1
+```
+
+Output:
+
+```text
+.\installer-output\QuerySpace-Setup-<version>.exe
+```
+
+Use `-FrameworkDependent` only when the target computers already have the required .NET Desktop Runtime.
+
+## Repository structure
+
+```text
+src\QuerySpace\             WPF desktop application
+src\QuerySpace.McpServer\   Read-only MCP server
+src\QuerySpace\Assets\      Application assets
+src\QuerySpace\Templates\   Built-in SQL templates
+installer\                  Inno Setup project
+scripts\                    Build and license scripts
+```
+
+## Technology and dependencies
+
+The following tables list direct project dependencies. Transitive packages and package-provided license text are recorded in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
+
+### Platform and build tools
+
+| Technology | License or owner | Use |
+|---|---|---|
+| C# and .NET 9 | MIT; Microsoft and .NET Foundation | Application language, runtime, and build system. |
+| WPF | MIT; Microsoft and .NET Foundation | Native Windows user interface. |
+| Windows DPAPI | Microsoft Windows | Encrypts saved credentials for the current user. |
+| Windows ODBC | Microsoft Windows | Connects to configured 64-bit ODBC data sources. |
+| Git | GPL-2.0 | Source control. |
+| NuGet | Apache-2.0 | .NET package management. |
+| Inno Setup 6 | Inno Setup License | Creates the Windows installer. |
+
+### Desktop application packages
+
+| Package | Version | License | Use |
+|---|---:|---|---|
+| `AvalonEdit` | 6.3.1.120 | MIT | SQL editor, highlighting, and autocomplete. |
+| `DuckDB.NET.Data.Full` | 1.5.3 | MIT | Embedded DuckDB engine and ADO.NET provider. |
+| `ExcelDataReader` | 3.9.0 | MIT | Reads `.xls` and `.xlsx` files. |
+| `Microsoft.Data.SqlClient` | 7.0.2 | MIT | SQL Server connections. |
+| `Microsoft.AI.Foundry.Local` | 2.0.1 | MIT | Optional local model discovery and inference. |
+| `Microsoft.Agents.AI` | 1.22.0 | MIT | AI agent and conversation abstractions. |
+| `Microsoft.Agents.AI.Harness` | 1.22.0 | MIT | AI tool orchestration and session handling. |
+| `Microsoft.Extensions.AI` | 10.10.0 | MIT | Common AI messages, clients, and tools. |
+| `Parquet.Net` | 6.0.3 | MIT | Streams database extracts into Parquet row groups. |
+| `Snowflake.Data` | 5.7.0 | Apache-2.0 | Snowflake connectivity. |
+| `System.Data.Odbc` | 9.0.7 | .NET library license | ODBC connectivity. |
+| `System.Management` | 9.0.13 | MIT | Detects Windows GPU adapters. |
+| `System.Security.Cryptography.ProtectedData` | 9.0.13 | MIT | Windows DPAPI support. |
+
+### MCP server packages
+
+| Package | Version | License | Use |
+|---|---:|---|---|
+| `DuckDB.NET.Data.Full` | 1.5.3 | MIT | Restricted SQL over approved Parquet datasets. |
+| `Microsoft.Extensions.Hosting` | 9.0.7 | MIT | MCP process hosting and lifetime management. |
+| `ModelContextProtocol` | 1.4.1 | Apache-2.0 | MCP server implementation. |
+
+### External components
+
+| Component | Included? | Notes |
+|---|---:|---|
+| SQL Server | No | Requires access to a licensed SQL Server instance. |
+| Vendor ODBC drivers | No | Install separately under the database vendor's terms. |
+| Snowflake account and credentials | No | Requires a Snowflake account and approved authentication method. |
+| Local model weights | No | Downloaded after approval and governed by each model publisher's license. |
+
+## Dependency and license maintenance
+
+Run these commands before creating a release:
+
+```powershell
+dotnet restore .\QuerySpace.sln
+dotnet list .\src\QuerySpace\QuerySpace.csproj package --include-transitive
+dotnet list .\src\QuerySpace\QuerySpace.csproj package --vulnerable --include-transitive
+dotnet list .\src\QuerySpace\QuerySpace.csproj package --outdated
+.\scripts\generate-third-party-notices.ps1
+```
+
+The dependency tables are an engineering inventory, not legal advice. Review the exact release output and [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) with the appropriate legal or compliance team before external distribution.
+
+## Security notes
+
+- QuerySpace has no local HTTP backend.
+- Credentials are not stored in source files or workspace connection files.
+- Failed or cancelled extracts remove incomplete output files.
+- External MCP access is read-only and follows the configured permissions.
+- Cloud AI sends only the requested context and approved tool results to the configured provider.
+- Vendor-specific database clients are not bundled unless listed as direct dependencies.
+
+## License
+
+See [LICENSE](LICENSE) for the QuerySpace project license and [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) for third-party license information.

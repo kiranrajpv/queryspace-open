@@ -9,6 +9,7 @@ using System.Data;
 using System.IO;
 using System.Text.RegularExpressions;
 using System.Windows;
+using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
@@ -39,18 +40,83 @@ public partial class MainWindow : Window
     private int _untitledQueryCounter;
     private double _scriptFileNameColumnWidth = 175;
     private double _scriptStatusColumnWidth = 85;
+    private readonly AiSettingsStore _aiSettingsStore = new();
+    private readonly FoundryLocalService _foundryLocalService = new();
+    private readonly AiService _aiService;
+    private readonly AgentToolService _agentTools;
+    private AiAssistantPanel? _aiAssistantPanel;
+    private double _aiAssistantWidth = 400;
 
     public MainWindow()
     {
         InitializeComponent();
         WindowTitleBar.Apply(this);
         _engine = new DataEngine(_workspace);
+        _aiService = new AiService(_aiSettingsStore, _foundryLocalService);
+        _agentTools = new AgentToolService(
+            _workspace,
+            _aiSettingsStore,
+            () => SqlEditor.Text,
+            InsertSqlAtCaret,
+            ReplaceActiveQuerySql);
+        _agentTools.Activity += AgentTools_Activity;
         InitializeSqlEditor();
         CreateQueryDocument("Untitled 1", null, SqlEditor.Text, true, true);
         Closing += MainWindow_Closing;
+        Closed += MainWindow_Closed;
         RefreshExplorer();
         _ = RefreshInMemoryExplorerAsync();
         SetStatus("Ready");
+    }
+
+    private void ExplorerActivity_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: string value } button || !int.TryParse(value, out var index)) return;
+        if (index < 0 || index >= ExplorerTabs.Items.Count) return;
+        if (button.Parent is Panel activityBar)
+        {
+            foreach (var activityButton in activityBar.Children.OfType<Button>())
+            {
+                activityButton.ClearValue(Control.BackgroundProperty);
+                activityButton.ClearValue(Control.ForegroundProperty);
+            }
+        }
+        button.Background = SystemColors.HighlightBrush;
+        button.Foreground = SystemColors.HighlightTextBrush;
+        ExplorerTabs.SelectedIndex = index;
+        ExplorerSectionTitle.Text = index switch
+        {
+            0 => "LOCAL DATASETS",
+            1 => "SQL SCRIPTS",
+            2 => "TEMPLATES",
+            3 => "CONNECTIONS",
+            4 => "IN-MEMORY OBJECTS",
+            _ => "DATA EXPLORER"
+        };
+    }
+
+    private void UsageCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (UsageStatusText == null) return;
+        UsageStatusText.Text = UsageCombo.SelectedItem is ComboBoxItem item
+            ? item.Content?.ToString() ?? "Memory"
+            : "Memory";
+    }
+
+    private void AgentTools_Activity(string message)
+    {
+        Dispatcher.BeginInvoke(() =>
+        {
+            McpActivityList.Items.Insert(0, message);
+            while (McpActivityList.Items.Count > 250) McpActivityList.Items.RemoveAt(McpActivityList.Items.Count - 1);
+        });
+    }
+
+    private async void MainWindow_Closed(object? sender, EventArgs e)
+    {
+        _extractCts?.Cancel();
+        _aiAssistantPanel?.Stop();
+        await _aiService.DisposeAsync();
     }
 
     private void MainWindow_Closing(object? sender, System.ComponentModel.CancelEventArgs e)
@@ -131,6 +197,11 @@ public partial class MainWindow : Window
     private void DatasetsTree_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
         _datasetDragStartPoint = e.GetPosition(DatasetsTree);
+    }
+
+    private void DatasetsTree_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        SelectTreeItemFromEvent(e);
     }
 
     private void DatasetsTree_PreviewMouseMove(object sender, MouseEventArgs e)
@@ -338,6 +409,49 @@ public partial class MainWindow : Window
         SetStatus($"Saved connection {dialog.ConnectionName}");
     }
 
+    private void OpenAiSettings_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new AiSettingsDialog(_aiSettingsStore, _foundryLocalService) { Owner = this };
+        dialog.ShowDialog();
+        RefreshExplorer();
+        _aiAssistantPanel?.RefreshModels();
+    }
+
+    private void OpenAiAssistant_Click(object sender, RoutedEventArgs e)
+    {
+        if (AiAssistantPanelBorder.Visibility == Visibility.Visible)
+        {
+            HideAiAssistant();
+            return;
+        }
+
+        if (_aiAssistantPanel == null)
+        {
+            _aiAssistantPanel = new AiAssistantPanel(_aiSettingsStore, _foundryLocalService, _aiService, _agentTools);
+            _aiAssistantPanel.CloseRequested += (_, _) => HideAiAssistant();
+            _aiAssistantPanel.ModelChanged += text => AiRuntimeStatusText.Text = text;
+            AiAssistantHost.Content = _aiAssistantPanel;
+        }
+
+        AiAssistantSplitterColumn.Width = new GridLength(5);
+        AiAssistantColumn.Width = new GridLength(Math.Max(320, _aiAssistantWidth));
+        AiAssistantSplitter.Visibility = Visibility.Visible;
+        AiAssistantPanelBorder.Visibility = Visibility.Visible;
+        AiAssistantButton.ToolTip = "Hide QuerySpace Assistant";
+        AiAssistantButton.SetValue(AutomationProperties.NameProperty, "Hide QuerySpace Assistant");
+    }
+
+    private void HideAiAssistant()
+    {
+        if (AiAssistantPanelBorder.ActualWidth >= 320) _aiAssistantWidth = AiAssistantPanelBorder.ActualWidth;
+        AiAssistantPanelBorder.Visibility = Visibility.Collapsed;
+        AiAssistantSplitter.Visibility = Visibility.Collapsed;
+        AiAssistantColumn.Width = new GridLength(0);
+        AiAssistantSplitterColumn.Width = new GridLength(0);
+        AiAssistantButton.ToolTip = "Show QuerySpace Assistant";
+        AiAssistantButton.SetValue(AutomationProperties.NameProperty, "Show QuerySpace Assistant");
+    }
+
     private async void Extract_Click(object sender, RoutedEventArgs e)
     {
         if (_extractCts != null)
@@ -461,6 +575,7 @@ public partial class MainWindow : Window
                 document.Results = result.Table;
             }
             ResultsGrid.ItemsSource = result.Table.DefaultView;
+            UpdateResultStatus(result.Table);
             if (mode.Equals("Memory", StringComparison.OrdinalIgnoreCase))
             {
                 await RefreshInMemoryExplorerAsync();
@@ -525,6 +640,7 @@ public partial class MainWindow : Window
 
         _currentResults = document.Results;
         ResultsGrid.ItemsSource = document.Results?.DefaultView;
+        UpdateResultStatus(document.Results);
         UpdateEditorFileStatus();
     }
 
@@ -852,6 +968,22 @@ public partial class MainWindow : Window
         RefreshExplorer();
     }
 
+    private void DatasetContextMenu_Opened(object sender, RoutedEventArgs e)
+    {
+        DatasetMcpMenuItem.IsChecked = SelectedTreeValue(DatasetsTree) is DatasetInfo { ExposeToMcp: true };
+    }
+
+    private void DatasetMcpAccess_Click(object sender, RoutedEventArgs e)
+    {
+        if (SelectedTreeValue(DatasetsTree) is not DatasetInfo dataset) return;
+        var enabled = DatasetMcpMenuItem.IsChecked;
+        _workspace.SetDatasetMcpAccess(dataset, enabled);
+        RefreshExplorer();
+        SetStatus(enabled
+            ? $"{dataset.Name} is available to MCP and AI tools"
+            : $"{dataset.Name} was removed from MCP and AI access");
+    }
+
     private void ScriptsTree_DoubleClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
     {
         if (SelectedTreeValue(ScriptsTree) is string path && File.Exists(path))
@@ -1172,6 +1304,7 @@ public partial class MainWindow : Window
             var result = await Task.Run(() => _engine.ExecuteAsync(sql, previewRows, "Memory", CancellationToken.None));
             _currentResults = result.Table;
             ResultsGrid.ItemsSource = result.Table.DefaultView;
+            UpdateResultStatus(result.Table);
             SetStatus($"Previewed {obj.Name}. Displayed {result.DisplayedRows:N0} rows.");
         }
         catch (Exception ex)
@@ -1289,7 +1422,8 @@ public partial class MainWindow : Window
         var extractQueries = _workspace.SnapshotExtractQueries();
         foreach (var dataset in datasets.Where(d => MatchesExplorerFilter(filter, d.Name)).OrderBy(d => d.Name))
         {
-            DatasetsTree.Items.Add(new TreeViewItem { Header = TreeHeader(StorageIcon(), $"{dataset.Name} ({dataset.RowCount:N0} rows)"), Tag = dataset });
+            var access = dataset.ExposeToMcp ? " • AI" : "";
+            DatasetsTree.Items.Add(new TreeViewItem { Header = TreeHeader(StorageIcon(), $"{dataset.Name} ({dataset.RowCount:N0} rows){access}"), Tag = dataset });
         }
         AddEmptyExplorerItem(DatasetsTree, string.IsNullOrWhiteSpace(filter) ? "No local datasets" : "No matching datasets");
 
@@ -1352,7 +1486,14 @@ public partial class MainWindow : Window
     private void SetStatus(string message, bool busy = false)
     {
         StatusText.Text = busy ? message + "..." : message;
+        MessagesList.Items.Insert(0, $"{DateTime.Now:T}  {message}");
+        while (MessagesList.Items.Count > 250) MessagesList.Items.RemoveAt(MessagesList.Items.Count - 1);
         StopExtractButton.IsEnabled = true;
+    }
+
+    private void UpdateResultStatus(DataTable? table)
+    {
+        RowCountStatusText.Text = table == null ? "0 rows" : $"{table.Rows.Count:N0} rows × {table.Columns.Count:N0} columns";
     }
 
     private string ExplorerFilter => ExplorerSearchText?.Text.Trim() ?? "";
@@ -1403,6 +1544,14 @@ public partial class MainWindow : Window
         var insertion = prefix + sql + suffix;
         SqlEditor.Document.Insert(offset, insertion);
         SqlEditor.CaretOffset = offset + insertion.Length;
+    }
+
+    private void ReplaceActiveQuerySql(string sql)
+    {
+        SqlEditor.Text = sql;
+        SqlEditor.CaretOffset = SqlEditor.Text.Length;
+        SqlEditor.Focus();
+        SetStatus("AI updated the active query editor");
     }
 
     private string BuildLocalDatasetSelectSql(string datasetName)
@@ -1713,7 +1862,7 @@ public partial class MainWindow : Window
         _ => ""
     };
 
-    private static void UpdateScriptStateUi(ScriptExecutionState state)
+    private void UpdateScriptStateUi(ScriptExecutionState state)
     {
         if (state.ActionButton != null)
         {
@@ -1760,6 +1909,15 @@ public partial class MainWindow : Window
             {
                 state.HeaderPanel.ClearValue(Panel.BackgroundProperty);
             }
+        }
+
+        ExecutionQueueList.Items.Clear();
+        foreach (var execution in _scriptExecutionStates.Values
+                     .Where(value => value.Status != ScriptExecutionStatus.Ready)
+                     .OrderBy(value => value.Status == ScriptExecutionStatus.Running ? 0 : value.Status == ScriptExecutionStatus.Queued ? 1 : 2)
+                     .ThenBy(value => Path.GetFileName(value.Path)))
+        {
+            ExecutionQueueList.Items.Add($"{Path.GetFileName(execution.Path)}  —  {ScriptStatusText(execution)}");
         }
     }
 
