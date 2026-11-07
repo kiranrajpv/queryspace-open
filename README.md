@@ -11,7 +11,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/kiranrajpv/queryspace-csharp/blob/main/LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-2ea44f"></a>
+  <a href="https://github.com/kiranrajpv/queryspace-open/blob/main/LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-2ea44f"></a>
   <img alt="Platform: Windows" src="https://img.shields.io/badge/platform-Windows-0078D4?logo=windows11&amp;logoColor=white">
   <img alt=".NET 9" src="https://img.shields.io/badge/.NET-9.0-512BD4?logo=dotnet&amp;logoColor=white">
   <img alt="DuckDB" src="https://img.shields.io/badge/DuckDB-embedded-FFF000?logo=duckdb&amp;logoColor=111111">
@@ -287,7 +287,7 @@ Clone the repository and open PowerShell in the project root:
 
 ```powershell
 git clone <repository-url>
-cd queryspace-csharp
+cd queryspace-open
 dotnet restore .\QuerySpace.sln
 dotnet build .\QuerySpace.sln -c Release
 ```
